@@ -1,0 +1,30 @@
+# ML Core
+torch
+torchaudio
+open-clip-torch
+openai-whisper
+opencv-python
+Pillow
+scikit-learn
+numpy
+matplotlib
+
+# Data Collection
+yt-dlp
+ffmpeg-python
+
+# Vector Store + Retrieval
+chromadb
+langchain
+langchain-community
+langchain-ollama
+
+# NPU Optimisation
+openvino
+openvino-dev
+
+# Backend
+fastapi
+uvicorn
+python-dotenv
+tqdm
