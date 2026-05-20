@@ -20,5 +20,4 @@ venv/
 logs/
 
 # Test files
-test_imports.py
 test_setup.py

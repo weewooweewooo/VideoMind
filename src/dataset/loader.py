@@ -1,5 +1,3 @@
-"""PyTorch dataset for OpenCLIP lecture frame/text pairs."""
-
 from __future__ import annotations
 
 import json

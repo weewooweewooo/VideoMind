@@ -12,6 +12,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from src.dataset.loader import DEFAULT_CLIP_MODEL, DEFAULT_CLIP_PRETRAINED
+from src.utils.model_utils import resolve_checkpoint_file, resolve_device
 
 
 class CLIPEmbedder:
@@ -27,7 +28,7 @@ class CLIPEmbedder:
         """Load vanilla OpenCLIP and optional fine-tuned checkpoint weights."""
         self.model_name = model_name
         self.pretrained = pretrained
-        self.device = self._resolve_device(device)
+        self.device = resolve_device(device)
 
         try:
             model, _, preprocess_val = open_clip.create_model_and_transforms(
@@ -46,29 +47,9 @@ class CLIPEmbedder:
         self.preprocess = preprocess_val
         self.tokenizer = tokenizer
 
-    def _resolve_device(self, device: str) -> torch.device:
-        """Resolve cpu/cuda/auto into a PyTorch device."""
-        requested = device.lower()
-        if requested == "auto":
-            return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        if requested == "cuda" and not torch.cuda.is_available():
-            raise RuntimeError("CUDA was requested but is unavailable")
-        if requested == "npu":
-            raise RuntimeError("OpenCLIP retrieval uses PyTorch and supports cpu/cuda in this project")
-        return torch.device(requested)
-
-    def _resolve_checkpoint_file(self, checkpoint: str | Path) -> Path:
-        """Resolve a checkpoint directory or file to model.pt."""
-        path = Path(checkpoint)
-        if path.is_dir():
-            path = path / "model.pt"
-        if not path.exists():
-            raise FileNotFoundError(f"OpenCLIP checkpoint not found: {path}")
-        return path
-
     def _load_checkpoint(self, model: nn.Module, checkpoint: str | Path) -> None:
         """Load fine-tuned OpenCLIP weights into the model."""
-        checkpoint_file = self._resolve_checkpoint_file(checkpoint)
+        checkpoint_file = resolve_checkpoint_file(str(checkpoint))
         state = torch.load(checkpoint_file, map_location="cpu")
         state_dict = state.get("model_state_dict", state) if isinstance(state, dict) else state
         model.load_state_dict(state_dict)
@@ -82,10 +63,6 @@ class CLIPEmbedder:
             return Image.open(path).convert("RGB")
         except (OSError, UnidentifiedImageError) as exc:
             raise ValueError(f"Could not read image: {path}") from exc
-
-    def embed_image(self, image_path: str | Path) -> np.ndarray:
-        """Embed one image path as a normalized numpy vector."""
-        return self.embed_batch_images([image_path])[0]
 
     def embed_text(self, text: str) -> np.ndarray:
         """Embed one text query as a normalized numpy vector."""

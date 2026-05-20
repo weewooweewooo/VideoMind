@@ -20,28 +20,7 @@ from src.dataset.loader import (
     DEFAULT_CLIP_PRETRAINED,
     collate_clip_batch,
 )
-
-
-def resolve_device(device: str) -> torch.device:
-    """Resolve an evaluation device."""
-    requested = device.lower()
-    if requested == "auto":
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if requested == "cuda" and not torch.cuda.is_available():
-        raise RuntimeError("CUDA was requested but is unavailable")
-    if requested == "npu":
-        raise RuntimeError("OpenCLIP evaluation uses PyTorch and supports cpu/cuda in this project")
-    return torch.device(requested)
-
-
-def resolve_checkpoint_file(checkpoint: str | Path) -> Path:
-    """Resolve a checkpoint directory or file to a saved model.pt path."""
-    path = Path(checkpoint)
-    if path.is_dir():
-        path = path / "model.pt"
-    if not path.exists():
-        raise FileNotFoundError(f"OpenCLIP checkpoint not found: {path}")
-    return path
+from src.utils.model_utils import resolve_checkpoint_file, resolve_device
 
 
 def load_open_clip_model(
@@ -57,7 +36,7 @@ def load_open_clip_model(
         raise RuntimeError(f"Could not create OpenCLIP model {model_name!r} with pretrained={pretrained!r}") from exc
 
     if checkpoint is not None:
-        checkpoint_file = resolve_checkpoint_file(checkpoint)
+        checkpoint_file = resolve_checkpoint_file(str(checkpoint))
         state = torch.load(checkpoint_file, map_location="cpu")
         state_dict = state.get("model_state_dict", state) if isinstance(state, dict) else state
         model.load_state_dict(state_dict)

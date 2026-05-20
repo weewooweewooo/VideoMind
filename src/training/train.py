@@ -23,18 +23,7 @@ from src.dataset.loader import (
     collate_clip_batch,
 )
 from src.training.loss import InfoNCELoss
-
-
-def resolve_torch_device(device: str) -> torch.device:
-    """Resolve a requested training device to a PyTorch device."""
-    requested = device.lower()
-    if requested == "auto":
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if requested == "cuda" and not torch.cuda.is_available():
-        raise RuntimeError("CUDA was requested but torch.cuda.is_available() is false")
-    if requested == "npu":
-        raise RuntimeError("OpenCLIP training uses PyTorch and supports cpu/cuda in this project")
-    return torch.device(requested)
+from src.utils.model_utils import resolve_device
 
 
 def create_cosine_scheduler(
@@ -163,7 +152,7 @@ def train(
     if batch_size < 2:
         raise ValueError("batch_size must be at least 2 for in-batch negatives")
 
-    torch_device = resolve_torch_device(device)
+    torch_device = resolve_device(device)
     output_path = Path(output)
     output_path.mkdir(parents=True, exist_ok=True)
 

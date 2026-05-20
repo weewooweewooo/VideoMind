@@ -12,6 +12,7 @@ matplotlib
 # Data Collection
 yt-dlp
 ffmpeg-python
+requests
 
 # Vector Store + Retrieval
 chromadb

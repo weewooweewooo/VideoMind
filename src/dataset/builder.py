@@ -1,5 +1,3 @@
-"""Build timestamp-aligned lecture frame/text pairs from Phase 1 outputs."""
-
 from __future__ import annotations
 
 import argparse
@@ -9,9 +7,10 @@ import re
 from pathlib import Path
 from typing import Any
 
-
 FrameTextPair = dict[str, str | int | float]
-TIMESTAMP_PATTERN = re.compile(r"_([0-9]+(?:\.[0-9]+)?)s\.(?:jpg|jpeg|png)$", re.IGNORECASE)
+TIMESTAMP_PATTERN = re.compile(
+    r"_([0-9]+(?:\.[0-9]+)?)s\.(?:jpg|jpeg|png)$", re.IGNORECASE
+)
 
 
 def load_transcript(transcript_path: str | Path) -> dict[str, Any]:
@@ -27,7 +26,10 @@ def load_transcript(transcript_path: str | Path) -> dict[str, Any]:
 
     segments = transcript.get("segments")
     if not isinstance(segments, list) or not segments:
-        raise ValueError(f"Transcript has no usable segments: {path}")
+        raise ValueError(
+            f"Whisper returned empty transcript for {path} — "
+            "audio may be unavailable or in unsupported format"
+        )
     return transcript
 
 
@@ -85,7 +87,10 @@ def merge_context_text(
 
     start_index = max(0, segment_index - context_window)
     end_index = min(len(segments), segment_index + context_window + 1)
-    texts = [str(segment.get("text", "")).strip() for segment in segments[start_index:end_index]]
+    texts = [
+        str(segment.get("text", "")).strip()
+        for segment in segments[start_index:end_index]
+    ]
     return " ".join(text for text in texts if text)
 
 
@@ -105,7 +110,9 @@ def build_pairs(
         timestamp = parse_frame_timestamp(frame_path)
         segment_index = find_segment_index(timestamp, segments)
         segment = segments[segment_index]
-        text = merge_context_text(segments, segment_index, context_window=context_window)
+        text = merge_context_text(
+            segments, segment_index, context_window=context_window
+        )
 
         if len(text.split()) < min_words:
             continue
@@ -138,7 +145,9 @@ def split_pairs(
     if not pairs:
         raise ValueError("Cannot split an empty pair list")
     if train_ratio <= 0 or val_ratio < 0 or train_ratio + val_ratio >= 1:
-        raise ValueError("Ratios must satisfy train_ratio > 0, val_ratio >= 0, and sum < 1")
+        raise ValueError(
+            "Ratios must satisfy train_ratio > 0, val_ratio >= 0, and sum < 1"
+        )
 
     shuffled = pairs.copy()
     random.Random(seed).shuffle(shuffled)
@@ -173,7 +182,9 @@ def save_pairs(
         "val": output_path / f"{video_name}_val.json",
         "test": output_path / f"{video_name}_test.json",
     }
-    files["all"].write_text(json.dumps(pairs, indent=2, ensure_ascii=False), encoding="utf-8")
+    files["all"].write_text(
+        json.dumps(pairs, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
 
     for split_name, split_items in split_pairs(pairs, seed=seed).items():
         files[split_name].write_text(
@@ -222,7 +233,8 @@ def build_all_videos(
     video_files = sorted(
         path
         for path in video_root.iterdir()
-        if path.is_file() and path.suffix.lower() in {".mp4", ".mov", ".mkv", ".avi", ".webm"}
+        if path.is_file()
+        and path.suffix.lower() in {".mp4", ".mov", ".mkv", ".avi", ".webm"}
     )
     if not video_files:
         raise ValueError(f"No video files found in: {video_root}")
@@ -241,17 +253,95 @@ def build_all_videos(
     }
 
 
+def print_pair_statistics(pairs_file: str | Path) -> None:
+    """Print comprehensive statistics about the pair dataset."""
+    pairs_file = Path(pairs_file)
+    if not pairs_file.exists():
+        print(f"Warning: Pairs file not found: {pairs_file}")
+        return
+
+    with pairs_file.open(encoding="utf-8") as f:
+        pairs = json.load(f)
+
+    if not pairs:
+        print("No pairs in dataset.")
+        return
+
+    total_pairs = len(pairs)
+    print(f"\n=== Pair Statistics ===")
+    print(f"Total pairs created: {total_pairs}")
+
+    timestamps = [pair.get("timestamp", 0) for pair in pairs]
+    texts = [pair.get("text", "") for pair in pairs]
+
+    min_timestamp = min(timestamps)
+    max_timestamp = max(timestamps)
+    print(f"Timestamp range: {min_timestamp}s - {max_timestamp}s")
+
+    word_counts = [len(text.split()) for text in texts]
+    avg_words = sum(word_counts) / len(word_counts) if word_counts else 0
+    print(f"Average text length: {avg_words:.1f} words")
+
+    if pairs:
+        sample = pairs[0]
+        text_preview = sample.get("text", "")[:100]
+        print(f"\nSample pair:")
+        print(f"  frame_path: {sample.get('frame_path', 'N/A')}")
+        print(f"  timestamp: {sample.get('timestamp', 'N/A')}s")
+        print(f"  text (first 100 chars): {text_preview}")
+
+
+def print_split_statistics(output_dir: str | Path, video_name: str) -> None:
+    """Print train/val/test split counts."""
+    output_path = Path(output_dir)
+    splits = {
+        "train": output_path / f"{video_name}_train.json",
+        "val": output_path / f"{video_name}_val.json",
+        "test": output_path / f"{video_name}_test.json",
+    }
+
+    split_counts = {}
+    for split_name, split_file in splits.items():
+        if split_file.exists():
+            with split_file.open(encoding="utf-8") as f:
+                split_data = json.load(f)
+                split_counts[split_name] = len(split_data)
+
+    if split_counts:
+        print(f"\nTrain/Val/Test split:")
+        print(f"  Train: {split_counts.get('train', 0)} pairs")
+        print(f"  Val: {split_counts.get('val', 0)} pairs")
+        print(f"  Test: {split_counts.get('test', 0)} pairs")
+
+
 def main() -> None:
     """Run the dataset builder from the command line."""
-    parser = argparse.ArgumentParser(description="Build VideoMind frame/text pair datasets.")
+    parser = argparse.ArgumentParser(
+        description="Build VideoMind frame/text pair datasets."
+    )
     parser.add_argument("--video", default=None, help="Single video path to process.")
-    parser.add_argument("--videos-dir", default="data/videos", help="Directory of videos.")
-    parser.add_argument("--frames-root", default="data/frames", help="Root frame directory.")
-    parser.add_argument("--transcripts-dir", default="data/transcripts", help="Transcript directory.")
+    parser.add_argument(
+        "--videos-dir", default="data/videos", help="Directory of videos."
+    )
+    parser.add_argument(
+        "--frames-root", default="data/frames", help="Root frame directory."
+    )
+    parser.add_argument(
+        "--transcripts-dir", default="data/transcripts", help="Transcript directory."
+    )
     parser.add_argument("--output", default="data/pairs", help="Output pair directory.")
-    parser.add_argument("--context-window", type=int, default=3, help="Segments to include on each side.")
-    parser.add_argument("--min-words", type=int, default=5, help="Minimum merged text word count.")
-    parser.add_argument("--seed", type=int, default=42, help="Deterministic split seed.")
+    parser.add_argument(
+        "--context-window",
+        type=int,
+        default=3,
+        help="Segments to include on each side.",
+    )
+    parser.add_argument(
+        "--min-words", type=int, default=5, help="Minimum merged text word count."
+    )
+    parser.add_argument(
+        "--seed", type=int, default=42, help="Deterministic split seed."
+    )
     args = parser.parse_args()
 
     if args.video:
@@ -265,6 +355,11 @@ def main() -> None:
             seed=args.seed,
         )
         print(json.dumps({key: str(value) for key, value in saved.items()}, indent=2))
+
+        video_name = Path(args.video).stem
+        pairs_file = Path(args.output) / f"{video_name}_pairs.json"
+        print_pair_statistics(pairs_file)
+        print_split_statistics(args.output, video_name)
         return
 
     saved_by_video = build_all_videos(
@@ -286,6 +381,8 @@ def main() -> None:
         )
     )
 
-
-if __name__ == "__main__":
-    main()
+    print("\n" + "=" * 50)
+    for video_name in saved_by_video.keys():
+        pairs_file = Path(args.output) / f"{video_name}_pairs.json"
+        print_pair_statistics(pairs_file)
+        print_split_statistics(args.output, video_name)
