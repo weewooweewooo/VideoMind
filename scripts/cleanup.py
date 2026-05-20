@@ -6,8 +6,11 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import argparse
+import logging
 
 from src.utils.cleanup import clean_video, clean_all
+
+logger = logging.getLogger(__name__)
 
 
 def format_bytes(bytes_count: int) -> str:
@@ -30,9 +33,9 @@ def print_cleanup_summary(
     print("=" * 60)
 
     if deleted_items:
-        print(f"\nDeleted items ({len(deleted_items)}):")
+        print(f"\nDeleted items: {len(deleted_items)}")
         for item in deleted_items:
-            print(f"  - {item}")
+            logger.debug("Deleted item: %s", item)
     else:
         print("\nNo items deleted")
 
@@ -42,14 +45,16 @@ def print_cleanup_summary(
 
 def main() -> None:
     """Run the cleanup CLI."""
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
     parser = argparse.ArgumentParser(
         description="Clean up cached VideoMind data.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python scripts/cleanup.py --video MIT6_034F10_lec01_300k --targets frames pairs
-  python scripts/cleanup.py --all --targets frames
-  python scripts/cleanup.py --all --targets frames transcripts pairs chroma
+  python scripts/cleanup.py --video MIT6_034F10_lec01_300k --targets pairs
+  python scripts/cleanup.py --all --targets pairs
+  python scripts/cleanup.py --all --targets pairs redis
         """,
     )
 
@@ -68,8 +73,8 @@ Examples:
         "--targets",
         type=str,
         nargs="+",
-        default=["frames", "transcripts", "pairs"],
-        help="What to clean: frames, transcripts, pairs, chroma (default: frames transcripts pairs)",
+        default=["pairs"],
+        help="What to clean: pairs, redis (default: pairs)",
     )
 
     args = parser.parse_args()
@@ -79,7 +84,7 @@ Examples:
     if args.video and args.all:
         parser.error("Cannot specify both --video and --all")
 
-    valid_targets = {"frames", "transcripts", "pairs", "chroma"}
+    valid_targets = {"pairs", "redis"}
     for target in args.targets:
         if target not in valid_targets:
             parser.error(

@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import re
+import logging
 from typing import Any
 
 import requests
 
 from src.ingestion.archive_utils import fetch_archive_metadata
+
+logger = logging.getLogger(__name__)
 
 
 def sanitize_title(title: str) -> str:
@@ -161,24 +164,22 @@ def search_archive_org(query: str, limit: int = 50) -> list[dict[str, Any]]:
             "output": "json",
         }
 
-        print(f"Searching archive.org for: {query}")
-        print(f"Query: {search_query}")
+        logger.info("Searching archive.org for: %s", query)
+        logger.debug("Archive.org query: %s", search_query)
         response = requests.get(search_url, params=params, timeout=30)
         response.raise_for_status()
 
         data = response.json()
         docs = data.get("response", {}).get("docs", [])
 
-        print(f"Raw results from archive.org: {len(docs)}")
+        logger.debug("Raw results from archive.org: %s", len(docs))
 
         videos = filter_lecture_videos(docs)
 
-        print(f"Filtered to {len(videos)} lecture videos\n")
+        logger.info("Filtered to %s lecture videos", len(videos))
         return videos
 
     except Exception as exc:
-        print(f"Error searching archive.org: {exc}")
-        import traceback
-
-        traceback.print_exc()
+        logger.error("Error searching archive.org: %s", exc)
+        logger.debug("archive.org search traceback", exc_info=True)
         return []

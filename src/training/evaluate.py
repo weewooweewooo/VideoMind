@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -165,6 +166,8 @@ def print_results_table(results: dict[str, dict[str, float]]) -> None:
 
 def main() -> None:
     """Run retrieval evaluation from the command line."""
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
     parser = argparse.ArgumentParser(description="Evaluate VideoMind OpenCLIP retrieval.")
     parser.add_argument("--model", "--checkpoint", dest="checkpoint", required=True, help="Fine-tuned checkpoint path.")
     parser.add_argument("--dataset", "--test-split", dest="dataset", default="data/pairs", help="Pair directory or test JSON.")

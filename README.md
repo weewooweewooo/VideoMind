@@ -1,236 +1,238 @@
 # VideoMind
 
-> A fully local Multimodal Video RAG system for lecture and educational videos — fine-tuned CLIP meets local LLM, zero external APIs.
+> Fully local multimodal video RAG for lecture videos: archive.org discovery, in-memory ingestion, CLIP retrieval, Redis Stack vector search, and Ollama answer generation with conversation memory.
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.x-EE4C2C?logo=pytorch)
-![License](https://img.shields.io/badge/License-MIT-green)
+![OpenCLIP](https://img.shields.io/badge/OpenCLIP-ViT--B--32-orange)
+![Redis Stack](https://img.shields.io/badge/Vector%20Store-Redis%20Stack-red)
+![FastAPI](https://img.shields.io/badge/API-FastAPI-009688)
 ![Status](https://img.shields.io/badge/Status-In%20Development-yellow)
 
----
+## Overview
 
-## What is VideoMind?
+VideoMind is a local research system for asking natural-language questions about lecture videos. It discovers lecture content, processes video streams without storing the source videos on disk, aligns visual frames with transcript context, stores CLIP embeddings in Redis Stack, and answers with timestamp citations through a local Ollama model.
 
-VideoMind lets you upload any lecture or educational video and ask natural language questions about it. Instead of scrubbing through hours of content, you get precise, timestamped answers citing the exact moment the concept was explained.
+The project is built for lecture-domain retrieval. Vanilla CLIP performs poorly on slides, whiteboards, derivations, and code walkthroughs because those visuals are underrepresented in generic image-text training data. VideoMind addresses that gap by building a lecture-specific dataset and fine-tuning CLIP ViT-B/32 with an InfoNCE contrastive loss. Fine-tuning is implemented and in progress; reported retrieval numbers below are the pre-fine-tuning baseline.
 
-**Fully local. No OpenAI. No Claude API. No cost per query.**
+VideoMind is fully local for AI inference: no OpenAI, Claude, or hosted LLM APIs. Discovery uses public archive.org metadata, while transcription, embedding, vector search, RAG, and answer generation run on local infrastructure.
 
----
+## Current Results
 
-## Motivation
+Baseline retrieval quality before fine-tuning:
 
-Vanilla CLIP was trained on general image-text pairs scraped from the internet — photographs, memes, product images. It has never seen a lecture slide, a whiteboard derivation, or a code walkthrough. When you ask it to retrieve the frame where a professor explains backpropagation, it struggles because the visual domain is completely foreign to it.
+| Metric | Vanilla CLIP | Fine-tuned CLIP |
+|---|---:|---:|
+| Mean cosine similarity | 0.276 | Pending training |
+| Recall@1 | 0% | Pending training |
 
-VideoMind addresses this by fine-tuning CLIP on a custom dataset of lecture frame-transcript pairs, teaching the model to align visual slide content with spoken explanations. The result is a retrieval model that actually understands educational video.
+Fine-tuned CLIP results will be added after the current training run and evaluation pass complete.
 
----
+## What Works Today
 
-## ML Contributions
+VideoMind currently supports intelligent content discovery via LLaMA sector categorization, archive.org video search, in-memory frame extraction with decord, in-memory transcription with faster-whisper, parallel frame/transcript processing, Redis Stack HNSW vector search, FastAPI ingestion/query endpoints, and per-session conversation memory.
 
-This is not a wrapper project. The core ML work includes:
+The ingestion path avoids source video storage. Frames are represented as PIL images in memory, transcripts are held as dictionaries in memory, embeddings are generated directly from those in-memory objects, and Redis stores vector records with video name, transcript context, and start/end timestamps.
 
-- **Custom dataset pipeline** — scraped lecture videos via `yt-dlp`, extracted frames with `FFmpeg`, transcribed audio with `Whisper medium`, and aligned frames with transcript chunks by timestamp to produce `(frame, text)` contrastive pairs
-- **CLIP fine-tuning** — fine-tuned `CLIP ViT-B/32` using InfoNCE contrastive loss on the lecture domain dataset, trained on a local RTX 3060
-- **Retrieval evaluation** — measured Recall@1, Recall@5, Recall@10 before and after fine-tuning on a held-out lecture test set
-- **NPU inference benchmarking** — optimised the fine-tuned CLIP model for Intel NPU (AI Boost) via OpenVINO INT8 quantisation and benchmarked latency against CPU baseline
+## Architecture
 
----
-
-## Results
-
-| Metric | Vanilla CLIP | Fine-tuned CLIP | Improvement |
-|---|---|---|---|
-| Recall@1 | — | — | — |
-| Recall@5 | — | — | — |
-| Recall@10 | — | — | — |
-
-| Backend | Avg inference latency | Speedup |
-|---|---|---|
-| CPU (Intel Core Ultra 7 165U) | — | baseline |
-| NPU (Intel AI Boost, INT8) | — | —x |
-
-> Results will be updated upon training completion.
-
----
-
-## System Architecture
-
+```text
+User discovers a topic
+  -> LLaMA categorizes archive.org results into sectors
+  -> User selects sector and videos
+  -> Stream video
+  -> decord extracts scene-change frames in memory
+  -> faster-whisper transcribes audio in memory
+  -> frame extraction and transcription run in parallel
+  -> CLIP embeds frames with open-clip-torch ViT-B/32
+  -> frames align to transcript segments by timestamp
+  -> Redis Stack stores HNSW vectors and metadata
+  -> User asks a question
+  -> CLIP embeds the query
+  -> Redis vector search retrieves relevant moments
+  -> Ollama LLaMA 3.2 3B generates an answer with timestamps
+  -> conversation memory is maintained per session
 ```
-Input Video
-     │
-     ▼
-┌─────────────────────────────────────────────────────┐
-│                  Ingestion Pipeline                  │
-│                                                     │
-│  yt-dlp ──► FFmpeg ──► Frames    ──► CLIP (FT) ──► │
-│                    └──► Whisper ──► Transcript ──►  │
-│                                  Timestamp align    │
-└─────────────────────────┬───────────────────────────┘
-                          │ (frame, text, timestamp) pairs
-                          ▼
-               ┌──────────────────┐
-               │    ChromaDB      │
-               │  Vector Store    │
-               └────────┬─────────┘
-                        │
-              Query ───►│
-                        ▼
-               ┌──────────────────┐
-               │  LangChain RAG   │
-               │  Retrieval Layer │
-               └────────┬─────────┘
-                        │ top-k chunks + timestamps
-                        ▼
-               ┌──────────────────┐
-               │ Ollama LLaMA 3.2 │
-               │  (fully local)   │
-               └────────┬─────────┘
-                        │
-                        ▼
-          Answer + Timestamp Citations
-```
-
----
 
 ## Tech Stack
 
-| Component | Tool | Runs |
-|---|---|---|
-| Speech-to-text | Whisper medium | Local |
-| Frame-text embeddings | CLIP ViT-B/32 (fine-tuned) | Local |
-| Vector store | ChromaDB | Local |
-| Retrieval pipeline | LangChain | Local |
-| LLM answer generation | Ollama + LLaMA 3.2 3B | Local |
-| Backend API | FastAPI | Local |
-| NPU optimisation | OpenVINO | Local |
-| Training framework | PyTorch | Local |
-| Data collection | yt-dlp + FFmpeg | Local |
+| Layer | Current implementation |
+|---|---|
+| Content discovery | archive.org search plus LLaMA sector categorization |
+| Frame extraction | decord, in-memory, no frame files written |
+| Speech-to-text | faster-whisper base, local model path preferred |
+| Embeddings | open-clip-torch ViT-B/32 |
+| Fine-tuning | PyTorch with symmetric InfoNCE contrastive loss |
+| Vector store | Redis Stack HNSW vector search via RedisVL |
+| Answer generation | Ollama LLaMA 3.2 3B via langchain-ollama |
+| API | FastAPI |
+| Session memory | Per-session VideoMindPipeline instances with 1-hour expiry |
+| NPU optimization | OpenVINO planned for benchmarking/export |
 
----
+## Repository Layout
 
-## Project Structure
-
-```
+```text
 videomind/
-├── data/
-│   ├── videos/          # raw downloaded lecture videos
-│   ├── frames/          # extracted frames per video
-│   ├── transcripts/     # Whisper output JSON
-│   ├── pairs/           # (frame, text) contrastive dataset
-│   └── chroma/          # ChromaDB persistent store
-├── src/
-│   ├── ingestion/
-│   │   ├── downloader.py      # yt-dlp wrapper
-│   │   ├── extractor.py       # FFmpeg frame extraction
-│   │   └── transcriber.py     # Whisper transcription
-│   ├── dataset/
-│   │   ├── builder.py         # timestamp alignment, pair creation
-│   │   └── loader.py          # PyTorch Dataset class
-│   ├── training/
-│   │   ├── train.py           # CLIP fine-tuning loop
-│   │   ├── loss.py            # InfoNCE contrastive loss
-│   │   └── evaluate.py        # Recall@K evaluation
-│   ├── retrieval/
-│   │   ├── embedder.py        # CLIP inference wrapper
-│   │   ├── store.py           # ChromaDB operations
-│   │   └── pipeline.py        # LangChain RAG chain
-│   ├── inference/
-│   │   └── openvino_export.py # OpenVINO INT8 export
-│   └── main.py                # FastAPI app
-├── notebooks/
-│   ├── 01_data_exploration.ipynb
-│   ├── 02_training_analysis.ipynb
-│   └── 03_retrieval_eval.ipynb
-├── tests/
-├── .env
-├── requirements.txt
-└── README.md
+  src/
+    ingestion/
+      downloader.py        CLI entry point
+      archive_search.py    archive.org search and metadata filtering
+      archive_utils.py     shared archive.org metadata/direct URL helpers
+      sector_analyzer.py   LLaMA-based sector categorization
+      stream_processor.py  discovery and streaming ingestion orchestration
+      extractor.py         decord in-memory frame extraction
+      transcriber.py       faster-whisper and archive.org transcript loading
+    dataset/
+      builder.py           transcript chunk dataset builder
+      loader.py            OpenCLIP-ready PyTorch dataset
+    training/
+      train.py             CLIP fine-tuning loop
+      loss.py              InfoNCE contrastive loss
+      evaluate.py          Recall@K evaluation
+    retrieval/
+      embedder.py          OpenCLIP embedding wrapper
+      store.py             Redis Stack vector search wrapper
+      pipeline.py          RAG pipeline with conversation memory
+    utils/
+      cleanup.py           pair/Redis cleanup helpers
+    main.py                FastAPI app
+  scripts/
+    cleanup.py             cleanup CLI
+  docker-compose.yml       Redis Stack, Ollama, API stack
+  Dockerfile               FastAPI API image
+  requirements.txt         CPU dependencies
+  requirements-gpu.txt     GPU dependencies
 ```
-
----
 
 ## Setup
 
-### Prerequisites
+Prerequisites:
 
-- Anaconda or Miniconda
-- FFmpeg
+- Docker and Docker Compose
 - Ollama
+- Python 3.11
+- Anaconda or Miniconda
 
-### 1. Clone the repository
+Clone the repository:
 
 ```bash
 git clone https://github.com/yourusername/videomind.git
 cd videomind
 ```
 
-### 2. Create conda environment
+Create the local Python environment:
 
 ```bash
-conda create -n videomind python=3.11 -y
+conda create -n videomind python=3.11 xz -y
 conda activate videomind
-conda install -c conda-forge ffmpeg -y
 ```
 
-### 3. Install dependencies
+Install dependencies. Use the CPU file for the work laptop and Docker-compatible environments:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Install Ollama and pull LLaMA 3.2
+Use the GPU file on the RTX 3060 machine:
 
 ```bash
-# Download Ollama from https://ollama.com/download
+pip install -r requirements-gpu.txt
+```
+
+Start local infrastructure:
+
+```bash
+docker-compose up -d
+```
+
+This starts Redis Stack, Redis Insight, Ollama, and the API container. If you want to run the API directly from the conda environment during development, start only the local services:
+
+```bash
+docker-compose up -d redis ollama
+```
+
+Pull the local LLM:
+
+```bash
 ollama pull llama3.2:3b
 ```
 
-### 5. Configure environment
+Download or copy the faster-whisper base model into:
 
-```bash
-cp .env.example .env
-# Edit .env with your paths
+```text
+models/faster-whisper-base/
 ```
 
----
+The local app expects:
+
+```env
+REDIS_URL=redis://localhost:6379
+OLLAMA_HOST=http://localhost:11434
+WHISPER_MODEL_PATH=./models/faster-whisper-base
+KMP_DUPLICATE_LIB_OK=TRUE
+DEVICE=cpu
+```
 
 ## Usage
 
-### Ingest a video
+Discover and ingest lecture videos from archive.org:
 
 ```bash
-python -m src.ingestion.downloader --url "https://youtube.com/watch?v=..." --output data/videos
-python -m src.ingestion.extractor --video data/videos/lecture.mp4
-python -m src.ingestion.transcriber --video data/videos/lecture.mp4
+python -m src.ingestion.downloader --discover "machine learning"
 ```
 
-### Build dataset and index
+Start the FastAPI app locally:
 
 ```bash
-python -m src.dataset.builder --videos-dir data/videos
-python -m src.retrieval.store --index
+uvicorn src.main:app --reload
 ```
 
-### Query a video
+Query indexed videos:
 
 ```bash
 curl -X POST http://localhost:8000/query \
   -H "Content-Type: application/json" \
-  -d '{"question": "When does the professor explain backpropagation?"}'
+  -d '{"question": "What is backpropagation?"}'
 ```
 
-### Fine-tune CLIP
+The response includes a `session_id`. Pass it back for follow-up questions so VideoMind can use conversation history:
 
 ```bash
-# Run on GPU machine
+curl -X POST http://localhost:8000/query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "Can you explain that more simply?", "session_id": "returned-session-id"}'
+```
+
+Session helpers:
+
+```bash
+GET    /sessions/{session_id}/history
+DELETE /sessions/{session_id}
+```
+
+Cleanup local pairs and Redis vectors:
+
+```bash
+python scripts/cleanup.py --all
+python scripts/cleanup.py --all --targets pairs redis
+```
+
+## Training
+
+The fine-tuning path is implemented for OpenCLIP ViT-B/32. The dataset builder creates train/validation/test splits from transcript chunks, and training optimizes image/text alignment with a symmetric InfoNCE loss.
+
+Run training on the GPU laptop:
+
+```bash
 python -m src.training.train \
   --dataset data/pairs \
   --epochs 20 \
   --batch-size 32 \
+  --device cuda \
   --output checkpoints/clip-lecture
 ```
 
-### Evaluate retrieval
+Evaluate retrieval after training:
 
 ```bash
 python -m src.training.evaluate \
@@ -238,41 +240,36 @@ python -m src.training.evaluate \
   --test-split data/pairs/test
 ```
 
----
+## Hardware
+
+| Machine | Specs | Role |
+|---|---|---|
+| Work laptop | Intel Core Ultra 7 165U, Intel AI Boost NPU | Development, ingestion, API testing, future NPU benchmarking |
+| Personal laptop | NVIDIA RTX 3060 4GB | CLIP fine-tuning and GPU inference experiments |
 
 ## Roadmap
 
-- [x] Project structure and environment setup
-- [ ] Data ingestion pipeline (yt-dlp + FFmpeg + Whisper)
-- [ ] Contrastive dataset builder
-- [ ] CLIP fine-tuning training loop
-- [ ] Recall@K evaluation harness
-- [ ] ChromaDB vector store integration
-- [ ] LangChain RAG pipeline
-- [ ] Ollama LLaMA 3.2 integration
-- [ ] FastAPI backend
-- [ ] OpenVINO NPU export and benchmarking
-- [ ] Docker deployment
+Completed:
+
+- [x] Environment setup
+- [x] Intelligent content discovery with LLaMA
+- [x] Streaming in-memory pipeline with decord and faster-whisper
+- [x] Scene-change frame extraction
+- [x] Parallel frame and transcript processing
+- [x] Dataset builder with train/validation/test split
+- [x] CLIP fine-tuning pipeline with InfoNCE loss
+- [x] Redis Stack vector store
+- [x] Conversation memory and session management
+- [x] FastAPI backend
+- [x] Docker Compose stack
+
+Pending:
+
+- [ ] CLIP fine-tuning results
+- [ ] OpenVINO NPU benchmarking
+- [ ] Confidence thresholding
 - [ ] arXiv paper
-
----
-
-## Hardware
-
-Developed and tested on:
-
-- **Development + NPU benchmarking** — Intel Core Ultra 7 165U, Intel AI Boost NPU, 16GB RAM
-- **Model training** — NVIDIA RTX 3060 4GB VRAM
-
----
-
-## License
-
-MIT License — see [LICENSE](LICENSE) for details.
-
----
 
 ## Author
 
-**Sean Lee** — Full-Stack AI Developer  
-BSc Computer Science (Artificial Intelligence), Multimedia University
+Sean, BSc Computer Science (Artificial Intelligence), Multimedia University

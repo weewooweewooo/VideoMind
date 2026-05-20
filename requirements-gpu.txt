@@ -1,6 +1,6 @@
-# VideoMind CPU dependencies
-# CPU PyTorch wheels for work laptop and Docker.
---extra-index-url https://download.pytorch.org/whl/cpu
+# VideoMind GPU dependencies
+# CUDA PyTorch wheels for personal laptop.
+--extra-index-url https://download.pytorch.org/whl/cu121
 
 # ML core
 torch>=2.0

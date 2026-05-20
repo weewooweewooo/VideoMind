@@ -1,163 +1,214 @@
-"""ChromaDB storage wrapper for VideoMind frame embeddings."""
+"""Redis Stack vector storage for VideoMind retrieval embeddings."""
 
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
+import os
+import uuid
 from pathlib import Path
 from typing import Any
 
-import chromadb
+import numpy as np
+import redis
+from redisvl.index import SearchIndex
+from redisvl.query import VectorQuery
 
-from src.retrieval.embedder import CLIPEmbedder
+REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
+INDEX_NAME = "videomind"
+VECTOR_DIM = 512
+
+schema = {
+    "index": {
+        "name": INDEX_NAME,
+        "prefix": "videomind:doc",
+    },
+    "fields": [
+        {"name": "id", "type": "tag"},
+        {"name": "video", "type": "tag"},
+        {"name": "text", "type": "text"},
+        {"name": "start", "type": "numeric"},
+        {"name": "end", "type": "numeric"},
+        {
+            "name": "embedding",
+            "type": "vector",
+            "attrs": {
+                "algorithm": "hnsw",
+                "datatype": "float32",
+                "dims": VECTOR_DIM,
+                "distance_metric": "cosine",
+            },
+        },
+    ],
+}
 
 
 class VideoMindStore:
-    """Persist and query OpenCLIP frame embeddings in local ChromaDB."""
+    """Persist and query VideoMind vectors in Redis Stack."""
 
-    def __init__(
+    def __init__(self) -> None:
+        """Initialize the RedisVL search index."""
+        self.index = SearchIndex.from_dict(schema)
+        self.index.connect(REDIS_URL)
+        self.index.create(overwrite=False)
+
+    def index_video(self, pairs: list[dict[str, Any]]) -> int:
+        """Index video pairs into Redis."""
+        docs: list[dict[str, Any]] = []
+        for pair in pairs:
+            doc = {
+                "id": pair.get("id", str(uuid.uuid4())),
+                "video": pair["video"],
+                "text": pair["text"],
+                "start": float(pair.get("start", 0)),
+                "end": float(pair.get("end", 0)),
+                "embedding": np.array(pair["embedding"], dtype=np.float32).tobytes(),
+            }
+            docs.append(doc)
+
+        if docs:
+            self.index.load(docs, id_field="id")
+        return len(docs)
+
+    def index_frames_from_memory(
         self,
-        persist_dir: str | Path = "data/chroma",
-        collection_name: str = "videomind_frames",
-        embedder: CLIPEmbedder | None = None,
-        checkpoint: str | Path | None = None,
-        device: str = "auto",
-    ) -> None:
-        """Initialize a local persistent Chroma collection."""
-        self.persist_dir = Path(persist_dir)
-        self.persist_dir.mkdir(parents=True, exist_ok=True)
-        self._embedder = embedder
-        self.checkpoint = checkpoint
-        self.device = device
-        self.client = chromadb.PersistentClient(path=str(self.persist_dir))
-        self.collection = self.client.get_or_create_collection(
-            name=collection_name,
-            metadata={"hnsw:space": "cosine"},
-            embedding_function=None,
-        )
+        frames_with_embeddings: list[dict[str, Any]],
+        transcript: dict[str, Any],
+        video_name: str,
+    ) -> int:
+        """Align embeddings with transcript segments and index them to Redis."""
+        segments = transcript.get("segments", [])
+        if not isinstance(segments, list) or not segments:
+            raise ValueError("Transcript contains no segments to index")
 
-    @property
-    def embedder(self) -> CLIPEmbedder:
-        """Return the OpenCLIP embedder, loading it only when embeddings are needed."""
-        if self._embedder is None:
-            self._embedder = CLIPEmbedder(checkpoint=self.checkpoint, device=self.device)
-        return self._embedder
+        docs: list[dict[str, Any]] = []
+        for frame in frames_with_embeddings:
+            ts = float(frame["timestamp"])
+            embedding = frame["embedding"]
 
-    def _make_id(self, pair: dict[str, Any]) -> str:
-        """Build a stable Chroma id for a pair record."""
-        raw = f"{pair.get('video')}|{pair.get('segment_id')}|{pair.get('timestamp')}|{pair.get('frame_path')}"
-        digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
-        return f"{pair.get('video', 'video')}_{digest}"
+            best_seg = None
+            best_dist = float("inf")
+            for seg in segments:
+                start = float(seg["start"])
+                end = float(seg["end"])
+                if start <= ts <= end:
+                    best_seg = seg
+                    break
+                dist = min(abs(ts - start), abs(ts - end))
+                if dist < best_dist:
+                    best_dist = dist
+                    best_seg = seg
 
-    def index_video(self, pairs_json_path: str | Path, batch_size: int = 32) -> int:
-        """Embed all frame pairs from a JSON file and upsert them into ChromaDB."""
-        path = Path(pairs_json_path)
-        if not path.exists():
-            raise FileNotFoundError(f"Pairs JSON not found: {path}")
+            if best_seg is None:
+                continue
 
-        try:
-            pairs = json.loads(path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"Invalid pairs JSON: {path}") from exc
-        if not isinstance(pairs, list) or not pairs:
-            raise ValueError(f"Pairs JSON must contain a non-empty list: {path}")
+            seg_idx = segments.index(best_seg)
+            start_idx = max(0, seg_idx - 3)
+            end_idx = min(len(segments), seg_idx + 4)
+            context = " ".join(
+                str(segment["text"]) for segment in segments[start_idx:end_idx]
+            ).strip()
 
-        count = 0
-        for start in range(0, len(pairs), batch_size):
-            batch = pairs[start : start + batch_size]
-            frame_paths = [str(pair["frame_path"]) for pair in batch]
-            embeddings = self.embedder.embed_batch_images(frame_paths, batch_size=batch_size)
-            ids = [self._make_id(pair) for pair in batch]
-            documents = [str(pair.get("text", "")) for pair in batch]
-            metadatas = [
-                {
-                    "timestamp": float(pair.get("timestamp", 0.0)),
-                    "video": str(pair.get("video", "")),
-                    "text": str(pair.get("text", "")),
-                    "frame_path": str(pair.get("frame_path", "")),
-                    "segment_id": int(pair.get("segment_id", -1)),
-                }
-                for pair in batch
-            ]
-            self.collection.upsert(
-                ids=ids,
-                embeddings=embeddings.tolist(),
-                documents=documents,
-                metadatas=metadatas,
-            )
-            count += len(batch)
-        return count
+            if len(context.split()) < 5:
+                continue
+
+            doc = {
+                "id": str(uuid.uuid4()),
+                "video": video_name,
+                "text": context,
+                "start": float(best_seg["start"]),
+                "end": float(best_seg["end"]),
+                "embedding": np.array(embedding, dtype=np.float32).tobytes(),
+            }
+            docs.append(doc)
+
+        if docs:
+            self.index.load(docs, id_field="id")
+        return len(docs)
 
     def query(
         self,
-        text: str,
+        text_embedding: np.ndarray,
         top_k: int = 5,
         video_name: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Retrieve the most similar frame/text records for a text query."""
+        """Query Redis for similar vectors."""
         if top_k <= 0:
             raise ValueError("top_k must be greater than zero")
 
-        query_embedding = self.embedder.embed_text(text)
-        query_kwargs: dict[str, Any] = {
-            "query_embeddings": [query_embedding.tolist()],
-            "n_results": top_k,
-            "include": ["documents", "metadatas", "distances"],
-        }
+        query = VectorQuery(
+            vector=text_embedding.astype(np.float32).tobytes(),
+            vector_field_name="embedding",
+            return_fields=["id", "video", "text", "start", "end"],
+            num_results=top_k,
+        )
+
         if video_name:
-            query_kwargs["where"] = {"video": video_name}
+            query.set_filter(f"@video:{{{video_name}}}")
 
-        results = self.collection.query(**query_kwargs)
-        metadatas = results.get("metadatas", [[]])[0]
-        distances = results.get("distances", [[]])[0]
-
-        records: list[dict[str, Any]] = []
-        for metadata, distance in zip(metadatas, distances):
-            records.append(
-                {
-                    "frame_path": str(metadata.get("frame_path", "")),
-                    "timestamp": float(metadata.get("timestamp", 0.0)),
-                    "video": str(metadata.get("video", "")),
-                    "text": str(metadata.get("text", "")),
-                    "score": 1.0 - float(distance),
-                    "segment_id": int(metadata.get("segment_id", -1)),
-                }
-            )
-        return records
-
-    def delete_video(self, video_name: str) -> None:
-        """Delete all indexed records for a video name."""
-        if not video_name.strip():
-            raise ValueError("video_name must not be empty")
-        self.collection.delete(where={"video": video_name})
+        results = self.index.query(query)
+        return [
+            {
+                "video": result["video"],
+                "text": result["text"],
+                "start": float(result["start"]),
+                "end": float(result["end"]),
+                "score": 1 - float(result.get("vector_distance", 1)),
+            }
+            for result in results
+        ]
 
     def list_videos(self) -> list[str]:
-        """Return sorted unique video names currently indexed."""
-        results = self.collection.get(include=["metadatas"])
-        videos = {
-            str(metadata.get("video", ""))
-            for metadata in results.get("metadatas", [])
-            if metadata.get("video")
-        }
+        """List all indexed video names."""
+        client = redis.from_url(REDIS_URL)
+        keys = client.keys("videomind:doc:*")
+        videos = set()
+        for key in keys:
+            doc = client.hgetall(key)
+            if b"video" in doc:
+                videos.add(doc[b"video"].decode())
         return sorted(videos)
+
+    def delete_video(self, video_name: str) -> int:
+        """Delete all documents for a video."""
+        if not video_name.strip():
+            raise ValueError("video_name must not be empty")
+
+        client = redis.from_url(REDIS_URL)
+        keys = client.keys("videomind:doc:*")
+        deleted = 0
+        for key in keys:
+            doc = client.hgetall(key)
+            if doc.get(b"video", b"").decode() == video_name:
+                client.delete(key)
+                deleted += 1
+        return deleted
 
 
 def main() -> None:
-    """Run simple Chroma indexing from the command line."""
-    parser = argparse.ArgumentParser(description="Index VideoMind pair JSON files into ChromaDB.")
-    parser.add_argument("--pairs", required=True, help="Pairs JSON file or directory of *_pairs.json files.")
-    parser.add_argument("--checkpoint", default=None, help="Fine-tuned OpenCLIP checkpoint path.")
-    parser.add_argument("--device", default="auto", help="auto, cpu, or cuda.")
+    """Run simple Redis indexing from a JSON file containing embedded pairs."""
+    parser = argparse.ArgumentParser(
+        description="Index embedded VideoMind pair JSON files into Redis Stack."
+    )
+    parser.add_argument(
+        "--pairs",
+        required=True,
+        help="Pairs JSON file or directory of *_pairs.json files.",
+    )
     args = parser.parse_args()
 
-    store = VideoMindStore(checkpoint=args.checkpoint, device=args.device)
+    store = VideoMindStore()
     pairs_path = Path(args.pairs)
     files = sorted(pairs_path.glob("*_pairs.json")) if pairs_path.is_dir() else [pairs_path]
     total = 0
     for file in files:
-        total += store.index_video(file)
-        print(f"Indexed {file}")
+        try:
+            pairs = json.loads(file.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Invalid pairs JSON: {file}") from exc
+        if not isinstance(pairs, list):
+            raise ValueError(f"Pairs JSON must contain a list: {file}")
+        total += store.index_video(pairs)
     print(f"Indexed {total} pairs")
 
 

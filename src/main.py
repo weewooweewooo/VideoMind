@@ -3,22 +3,31 @@
 from __future__ import annotations
 
 import asyncio
-import json
+import concurrent.futures
+import logging
+import time
+import uuid
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
-from src.dataset.builder import build_video_pairs
-from src.ingestion.extractor import extract_frames
 from src.ingestion.archive_utils import resolve_direct_url
-from src.ingestion.transcriber import transcribe_video
+from src.ingestion.extractor import extract_frames_to_memory
+from src.ingestion.transcriber import transcribe_to_memory
+from src.retrieval.embedder import embed_frames_from_memory
 from src.retrieval.pipeline import VideoMindPipeline
 from src.retrieval.store import VideoMindStore
 from src.utils.cleanup import clean_video, clean_all
 
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
+
 app = FastAPI(title="VideoMind", version="0.1.0")
+sessions: dict[str, VideoMindPipeline] = {}
+session_timestamps: dict[str, float] = {}
+SESSION_TTL_SECONDS = 3600.0
 
 
 class IngestRequest(BaseModel):
@@ -55,25 +64,24 @@ class IngestResponse(BaseModel):
     video: str
     frames_extracted: int
     transcript_segments: int
-    pairs_indexed: int
-    pairs_path: str
+    frames_indexed: int
 
 
 class QueryRequest(BaseModel):
     """Request body for querying indexed video content."""
 
     question: str
-    video_name: str | None = None
+    session_id: str | None = None
 
 
 class SourceResponse(BaseModel):
     """Retrieved source returned with an answer."""
 
-    timestamp: float
-    text: str
-    frame_path: str
-    score: float
     video: str
+    start: float
+    end: float
+    text: str
+    score: float
 
 
 class QueryResponse(BaseModel):
@@ -81,6 +89,22 @@ class QueryResponse(BaseModel):
 
     answer: str
     sources: list[SourceResponse]
+    session_id: str
+    conversation_turn: int
+
+
+class SessionHistoryResponse(BaseModel):
+    """Conversation history response for a session."""
+
+    session_id: str
+    history: list[dict[str, str]]
+
+
+class DeleteSessionResponse(BaseModel):
+    """Response returned after clearing a session."""
+
+    session_id: str
+    cleared: bool
 
 
 class VideosResponse(BaseModel):
@@ -100,8 +124,8 @@ class CleanupRequest(BaseModel):
     """Request body for cache cleanup operations."""
 
     targets: list[str] = Field(
-        default=["frames", "transcripts", "pairs", "chroma"],
-        description="Types to clean: frames, transcripts, pairs, chroma",
+        default=["pairs", "redis"],
+        description="Types to clean: pairs, redis",
     )
 
 
@@ -114,7 +138,7 @@ class CleanupResponse(BaseModel):
 
 
 def get_store() -> VideoMindStore:
-    """Create a Chroma store instance for the current request."""
+    """Create a Redis vector store instance for the current request."""
     return VideoMindStore()
 
 
@@ -123,42 +147,37 @@ def get_pipeline() -> VideoMindPipeline:
     return VideoMindPipeline(store=get_store())
 
 
-def frames_exist(video_name: str) -> bool:
-    """Return whether extracted frames already exist for a video."""
-    frames_dir = Path("data/frames") / video_name
-    return (
-        frames_dir.exists()
-        and (
-            any(frames_dir.glob("*.jpg"))
-            or any(frames_dir.glob("*.jpeg"))
-            or any(frames_dir.glob("*.png"))
-        )
-    )
+def get_session_pipeline(session_id: str) -> VideoMindPipeline:
+    """Return the pipeline for a session, creating it if needed."""
+    if session_id not in sessions:
+        sessions[session_id] = VideoMindPipeline()
+    return sessions[session_id]
 
 
-def transcript_exists(video_name: str) -> bool:
-    """Return whether a transcript JSON already exists for a video."""
-    return (Path("data/transcripts") / f"{video_name}.json").exists()
-
-
-def pairs_exist(video_name: str) -> bool:
-    """Return whether the all-pairs JSON already exists for a video."""
-    return (Path("data/pairs") / f"{video_name}_pairs.json").exists()
+def clear_expired_sessions(now: float | None = None) -> None:
+    """Remove sessions that have not been used within the expiry window."""
+    current_time = time.time() if now is None else now
+    expired_session_ids = [
+        session_id
+        for session_id, timestamp in session_timestamps.items()
+        if current_time - timestamp > SESSION_TTL_SECONDS
+    ]
+    for session_id in expired_session_ids:
+        sessions.pop(session_id, None)
+        session_timestamps.pop(session_id, None)
 
 
 def cleanup_cache(targets: list[str], video_name: str | None = None) -> dict[str, Any]:
-    """Clean selected cache targets and remove Chroma records when requested."""
-    store = get_store()
+    """Clean selected cache targets and remove Redis records when requested."""
+    invalid_targets = set(targets) - {"pairs", "redis"}
+    if invalid_targets:
+        raise ValueError(
+            f"Invalid cleanup targets: {', '.join(sorted(invalid_targets))}"
+        )
+
     if video_name is None:
-        result = clean_all(targets)
-        if "chroma" in targets:
-            for indexed_video in store.list_videos():
-                store.delete_video(indexed_video)
-    else:
-        result = clean_video(video_name, targets)
-        if "chroma" in targets:
-            store.delete_video(video_name)
-    return result
+        return clean_all(targets)
+    return clean_video(video_name, targets)
 
 
 def cleanup_response(result: dict[str, Any]) -> CleanupResponse:
@@ -177,7 +196,7 @@ def ingest_video_sync(
     video_name: str | None = None,
     force: bool = False,
 ) -> dict[str, Any]:
-    """Run extraction, transcription, pair building, and Chroma indexing.
+    """Run extraction, transcription, embedding, and Redis indexing.
 
     Supports both local files and streaming from URLs.
 
@@ -191,134 +210,55 @@ def ingest_video_sync(
         Dictionary with ingestion results
     """
     if url:
-        return _ingest_video_from_url(url, video_name, force)
+        return _ingest_video_source(url, video_name, force, is_url=True)
     elif video_path:
-        return _ingest_video_from_path(video_path, force)
+        return _ingest_video_source(video_path, video_name, force, is_url=False)
     else:
         raise ValueError("Either video_path or url must be provided")
 
 
-def _ingest_video_from_path(video_path: str, force: bool = False) -> dict[str, Any]:
-    """Ingest a local video file."""
-    path = Path(video_path)
-    if not path.exists() or not path.is_file():
-        raise FileNotFoundError(f"Video file not found: {path}")
-
-    video_name = path.stem
-
-    frames = None
-    frames_dir = Path("data/frames") / video_name
-    if not force and frames_exist(video_name):
-        print(f"Frames already exist, skipping extraction")
-    else:
-        frames = extract_frames(str(path))
-
-    transcript = None
-    transcript_path = Path("data/transcripts") / f"{video_name}.json"
-    if not force and transcript_exists(video_name):
-        print(f"Transcript already exists, skipping transcription")
-        transcript = json.loads(transcript_path.read_text(encoding="utf-8"))
-    else:
-        transcript = transcribe_video(str(path))
-
-    pairs_path = None
-    pairs_all_path = Path("data/pairs") / f"{video_name}_pairs.json"
-    if not force and pairs_exist(video_name):
-        print(f"Dataset already exists, skipping building")
-        pairs_path = pairs_all_path
-    else:
-        saved_files = build_video_pairs(path)
-        pairs_path = saved_files["all"]
-
-    store = get_store()
-    indexed = 0
-    if not force and video_name in store.list_videos():
-        print(f"Video already indexed, skipping ChromaDB indexing")
-    else:
-        indexed = store.index_video(pairs_path)
-
-    if frames is None:
-        frames = list(frames_dir.glob("*.jp*g")) if frames_dir.exists() else []
-    if transcript is None:
-        transcript = (
-            json.loads(transcript_path.read_text(encoding="utf-8"))
-            if transcript_path.exists()
-            else {"segments": []}
-        )
-
-    return {
-        "video": video_name,
-        "frames_extracted": len(frames),
-        "transcript_segments": len(transcript.get("segments", [])),
-        "pairs_indexed": indexed,
-        "pairs_path": str(pairs_path),
-    }
-
-
-def _ingest_video_from_url(
-    url: str, video_name: str | None = None, force: bool = False
+def _ingest_video_source(
+    source: str,
+    video_name: str | None,
+    force: bool,
+    is_url: bool,
 ) -> dict[str, Any]:
-    """Ingest a video from URL via streaming."""
-    from src.ingestion.extractor import extract_frames_from_url
-    from src.ingestion.transcriber import transcribe_url
-
-    if video_name is None:
-        video_name = Path(url.split("?")[0]).stem or "video"
-
-    resolved_url = resolve_direct_url(url)
-    if resolved_url != url:
-        url = resolved_url
-        print(f"Resolved direct URL: {url}")
-
-    print(f"Ingesting from URL: {url[:80]}...")
-
-    frames = None
-    frames_dir = Path("data/frames") / video_name
-    if not force and frames_exist(video_name):
-        print(f"Frames already exist, skipping extraction")
-        frames = list(frames_dir.glob("*.jp*g"))
+    """Ingest a local path or URL through the in-memory pipeline."""
+    if is_url:
+        resolved_source = resolve_direct_url(source)
+        if video_name is None:
+            video_name = Path(source.split("?")[0]).stem or "video"
     else:
-        frames = extract_frames_from_url(url, video_name=video_name)
+        path = Path(source)
+        if not path.exists() or not path.is_file():
+            raise FileNotFoundError(f"Video file not found: {path}")
+        resolved_source = str(path)
+        if video_name is None:
+            video_name = path.stem
 
-    transcript = None
-    transcript_path = Path("data/transcripts") / f"{video_name}.json"
-    if not force and transcript_exists(video_name):
-        print(f"Transcript already exists, skipping transcription")
-        transcript = json.loads(transcript_path.read_text(encoding="utf-8"))
-    else:
-        transcript = transcribe_url(url, video_name=video_name)
-
-    pairs_path = None
-    pairs_all_path = Path("data/pairs") / f"{video_name}_pairs.json"
-    if not force and pairs_exist(video_name):
-        print(f"Dataset already exists, skipping building")
-        pairs_path = pairs_all_path
-    else:
-        saved_files = build_video_pairs(frames_dir)
-        pairs_path = saved_files["all"]
-
-    store = get_store()
-    indexed = 0
-    if not force and video_name in store.list_videos():
-        print(f"Video already indexed, skipping ChromaDB indexing")
-    else:
-        indexed = store.index_video(pairs_path)
-
-    if frames is None:
-        frames = list(frames_dir.glob("*.jp*g")) if frames_dir.exists() else []
-    if transcript is None:
-        transcript = (
-            json.loads(transcript_path.read_text(encoding="utf-8"))
-            if transcript_path.exists()
-            else {"segments": []}
+    logger.info("Ingesting video in memory")
+    start = time.time()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        frames_future = executor.submit(extract_frames_to_memory, resolved_source)
+        transcript_future = executor.submit(
+            transcribe_to_memory, resolved_source, video_name
         )
+        frames = frames_future.result()
+        transcript = transcript_future.result()
+    elapsed = time.time() - start
+    logger.info("In-memory extraction and transcription finished in %.1fs", elapsed)
+
+    embeddings = embed_frames_from_memory(frames)
+    store = get_store()
+    if force and video_name in store.list_videos():
+        store.delete_video(video_name)
+    indexed = store.index_frames_from_memory(embeddings, transcript, video_name)
 
     return {
         "video": video_name,
         "frames_extracted": len(frames),
         "transcript_segments": len(transcript.get("segments", [])),
-        "pairs_indexed": indexed,
-        "pairs_path": str(pairs_path),
+        "frames_indexed": indexed,
     }
 
 
@@ -348,14 +288,61 @@ async def ingest_video(request: IngestRequest) -> IngestResponse:
 async def query_video(request: QueryRequest) -> QueryResponse:
     """Answer a question against indexed video content."""
     try:
+        current_time = time.time()
+        clear_expired_sessions(current_time)
+        session_id = request.session_id or str(uuid.uuid4())
+        pipeline = get_session_pipeline(session_id)
+        session_timestamps[session_id] = current_time
         result = await asyncio.to_thread(
-            lambda: get_pipeline().query(request.question, request.video_name)
+            lambda: pipeline.query(request.question)
         )
-        return QueryResponse(**result)
+        return QueryResponse(
+            **result,
+            session_id=session_id,
+            conversation_turn=len(pipeline.get_history()) // 2,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Query failed: {exc}") from exc
+
+
+@app.delete("/sessions/{session_id}", response_model=DeleteSessionResponse)
+async def clear_session(session_id: str) -> DeleteSessionResponse:
+    """Clear conversation history for a session."""
+    try:
+        pipeline = sessions.get(session_id)
+        if pipeline is None:
+            raise HTTPException(status_code=404, detail="Session not found")
+        pipeline.clear_history()
+        session_timestamps[session_id] = time.time()
+        return DeleteSessionResponse(session_id=session_id, cleared=True)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500, detail=f"Could not clear session: {exc}"
+        ) from exc
+
+
+@app.get("/sessions/{session_id}/history", response_model=SessionHistoryResponse)
+async def get_session_history(session_id: str) -> SessionHistoryResponse:
+    """Return conversation history for a session."""
+    try:
+        pipeline = sessions.get(session_id)
+        if pipeline is None:
+            raise HTTPException(status_code=404, detail="Session not found")
+        session_timestamps[session_id] = time.time()
+        return SessionHistoryResponse(
+            session_id=session_id,
+            history=pipeline.get_history(),
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500, detail=f"Could not get session history: {exc}"
+        ) from exc
 
 
 @app.get("/videos", response_model=VideosResponse)

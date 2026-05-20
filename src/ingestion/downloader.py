@@ -3,15 +3,20 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
 from src.ingestion.archive_utils import resolve_direct_url
 from src.ingestion.stream_processor import discover_and_download, process_video_from_url
 
+logger = logging.getLogger(__name__)
+
 
 def main() -> None:
     """CLI entry point for the downloader."""
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
     parser = argparse.ArgumentParser(
         description="Stream and process lecture videos without downloading to disk.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -47,13 +52,13 @@ Only frames, transcripts, and training pairs are saved.
         if args.discover:
             discover_and_download(args.discover, limit=args.limit, output_dir=args.output)
         elif args.url:
-            print(f"Processing video via streaming: {args.url}")
+            print("Processing video via streaming")
             url = args.url
             video_name = Path(args.url.split("?")[0]).stem or "video"
             resolved_url = resolve_direct_url(url)
             if resolved_url != url:
                 url = resolved_url
-                print(f"Resolved direct URL: {url}")
+                logger.debug("Resolved direct URL: %s", url)
             if process_video_from_url(url, video_name):
                 print(f"\n✓ Success")
             else:
@@ -90,7 +95,7 @@ Only frames, transcripts, and training pairs are saved.
                 resolved_url = resolve_direct_url(url)
                 if resolved_url != url:
                     url = resolved_url
-                    print(f"Resolved direct URL: {url}")
+                    logger.debug("Resolved direct URL: %s", url)
 
                 if process_video_from_url(url, video_name):
                     success_count += 1

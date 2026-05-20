@@ -1,13 +1,18 @@
-import whisper
-import json
-import os
-import requests
-import tempfile
-from pathlib import Path
-from typing import Any
-from tqdm import tqdm
+"""In-memory transcription helpers using faster-whisper."""
 
-from src.ingestion.archive_utils import fetch_archive_metadata, resolve_direct_url
+from __future__ import annotations
+
+import logging
+import os
+import time
+from typing import Any
+
+import requests
+from faster_whisper import WhisperModel
+
+from src.ingestion.archive_utils import fetch_archive_metadata
+
+logger = logging.getLogger(__name__)
 
 
 def parse_srt_time(time_str: str) -> float:
@@ -83,255 +88,76 @@ def get_archive_transcript(identifier: str) -> dict | None:
         }
 
     except (requests.RequestException, KeyError, IndexError, ValueError) as exc:
-        print(f"Could not fetch archive.org transcript for {identifier}: {exc}")
+        logger.warning("Could not fetch archive.org transcript for %s: %s", identifier, exc)
         return None
 
 
-def transcribe_video(
-    video_path: str, output_dir: str = "data/transcripts", model_size: str = "base"
-) -> dict:
-    """
-    Transcribe a video using Whisper.
-    Returns transcript with word-level timestamps.
-    Saves output as JSON.
-    """
-    video_path = Path(video_path)
-    video_name = video_path.stem
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
-    output_file = Path(output_dir) / f"{video_name}.json"
-
-    print(f"Loading Whisper {model_size}...")
-    model = whisper.load_model(model_size, device="cpu")
-
-    print(f"Transcribing: {video_path.name}")
-    print("This may take a few minutes on CPU...")
-    result = model.transcribe(
-        str(video_path),
-        verbose=False,
-        language="en",
-        task="transcribe",
-        word_timestamps=True,
-    )
-
-    transcript = {
-        "video": video_path.name,
-        "duration": result.get("duration", 0),
-        "language": result.get("language", "en"),
-        "segments": [],
-    }
-
-    for seg in tqdm(result["segments"], desc="Processing segments"):
-        transcript["segments"].append(
-            {
-                "id": seg["id"],
-                "start": round(seg["start"], 2),
-                "end": round(seg["end"], 2),
-                "text": seg["text"].strip(),
-                "words": [
-                    {
-                        "word": w["word"].strip(),
-                        "start": round(w["start"], 2),
-                        "end": round(w["end"], 2),
-                    }
-                    for w in seg.get("words", [])
-                ],
-            }
-        )
-
-    with open(output_file, "w", encoding="utf-8") as f:
-        json.dump(transcript, f, indent=2, ensure_ascii=False)
-
-    print(f"\nTranscript saved → {output_file}")
-    print(f"Total segments: {len(transcript['segments'])}")
-    print(f"\nSample segment:")
-    print(
-        f"  [{transcript['segments'][0]['start']}s → {transcript['segments'][0]['end']}s]"
-    )
-    print(f"  {transcript['segments'][0]['text']}")
-
-    return transcript
+def _archive_identifier(video_path_or_url: str) -> str | None:
+    """Extract an archive.org identifier from details or download URLs."""
+    if "archive.org/details/" in video_path_or_url:
+        return video_path_or_url.split("/details/")[1].split("/")[0]
+    if "archive.org/download/" in video_path_or_url:
+        return video_path_or_url.split("/download/")[1].split("/")[0]
+    return None
 
 
-def transcribe_url(
-    url: str,
-    output_dir: str = "data/transcripts",
-    video_name: str | None = None,
+def transcribe_to_memory(
+    video_path_or_url: str,
+    video_name: str,
     model_size: str = "base",
+    device: str = "cpu",
+    compute_type: str = "int8",
 ) -> dict[str, Any]:
-    """Transcribe a video directly from a URL using Whisper.
-
-    Whisper natively supports URLs. Falls back to temporary file
-    download if URL streaming fails.
-
-    Args:
-        url: Video URL (HTTP/HTTPS or archive.org)
-        output_dir: Output directory for transcripts
-        video_name: Name for the video (extracted from URL if not provided)
-        model_size: Whisper model size (tiny, base, small, medium, large)
-
-    Returns:
-        Transcript dictionary with segments and word-level timestamps
-    """
-    if video_name is None:
-        video_name = Path(url.split("?")[0]).stem or "video"
-
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
-    output_file = Path(output_dir) / f"{video_name}.json"
-
-    resolved_url = resolve_direct_url(url)
-    if resolved_url != url:
-        url = resolved_url
-        print(f"Resolved direct URL: {url}")
-
-    if "archive.org/download/" in url:
-        identifier = url.split("/download/")[1].split("/")[0]
-        print("Checking for existing transcript on archive.org...")
-        existing = get_archive_transcript(identifier)
+    """Transcribe audio from a path or URL into a Whisper-compatible dict."""
+    archive_identifier = _archive_identifier(video_path_or_url)
+    if archive_identifier:
+        existing = get_archive_transcript(archive_identifier)
         if existing:
-            print(
-                f"Found existing transcript with {len(existing['segments'])} segments — skipping Whisper"
-            )
             existing["video"] = video_name
-            with open(output_file, "w") as f:
-                json.dump(existing, f, indent=2)
             return existing
 
-    print(f"Loading Whisper {model_size}...")
-    model = whisper.load_model(model_size, device="cpu")
-
-    print(f"Transcribing from URL: {url[:80]}...")
-    print("This may take a few minutes on CPU...")
-
-    try:
-        result = model.transcribe(
-            url,
-            verbose=False,
-            language="en",
-            task="transcribe",
-            word_timestamps=True,
-        )
-    except Exception as exc:
-        print(f"URL transcription failed: {exc}")
-        print("Falling back to temporary file download...")
-        result = _transcribe_via_temp_file(url, model)
-
-    segments = result.get("segments", [])
-    if len(segments) < 50:
-        print(
-            f"Only {len(segments)} segments from URL, trying yt-dlp fallback..."
-        )
-        result = _transcribe_via_ytdlp_audio(url, model)
-
-    transcript = {
-        "video": video_name,
-        "duration": result.get("duration", 0),
-        "language": result.get("language", "en"),
-        "segments": [],
-    }
-
-    for seg in tqdm(result["segments"], desc="Processing segments"):
-        transcript["segments"].append(
-            {
-                "id": seg["id"],
-                "start": round(seg["start"], 2),
-                "end": round(seg["end"], 2),
-                "text": seg["text"].strip(),
-                "words": [
-                    {
-                        "word": w["word"].strip(),
-                        "start": round(w["start"], 2),
-                        "end": round(w["end"], 2),
-                    }
-                    for w in seg.get("words", [])
-                ],
-            }
-        )
-
-    with open(output_file, "w", encoding="utf-8") as f:
-        json.dump(transcript, f, indent=2, ensure_ascii=False)
-
-    print(f"\nTranscript saved → {output_file}")
-    print(f"Total segments: {len(transcript['segments'])}")
-    if transcript['segments']:
-        print(f"\nSample segment:")
-        print(
-            f"  [{transcript['segments'][0]['start']}s → {transcript['segments'][0]['end']}s]"
-        )
-        print(f"  {transcript['segments'][0]['text']}")
-
-    return transcript
-
-
-def _transcribe_via_ytdlp_audio(url: str, model: Any) -> dict[str, Any]:
-    """Download best audio with yt-dlp, transcribe it, then delete the temp file."""
-    import yt_dlp
-
-    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
-        tmp_path = tmp.name
-
-    try:
-        ydl_opts = {
-            "format": "bestaudio",
-            "outtmpl": tmp_path,
-            "quiet": True,
+    start_time = time.time()
+    local_model_path = os.environ.get(
+        "WHISPER_MODEL_PATH", f"D:/models/faster-whisper-{model_size}"
+    )
+    if os.path.exists(local_model_path):
+        model = WhisperModel(local_model_path, device=device, compute_type=compute_type)
+    else:
+        model = WhisperModel(model_size, device=device, compute_type=compute_type)
+    segments_gen, info = model.transcribe(
+        video_path_or_url,
+        beam_size=5,
+        word_timestamps=True,
+        language="en",
+    )
+    raw_segments = list(segments_gen)
+    segments = [
+        {
+            "id": i,
+            "start": round(seg.start, 2),
+            "end": round(seg.end, 2),
+            "text": seg.text.strip(),
+            "words": [
+                {
+                    "word": word.word.strip(),
+                    "start": round(word.start, 2),
+                    "end": round(word.end, 2),
+                }
+                for word in (seg.words or [])
+            ],
         }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-
-        return model.transcribe(
-            tmp_path,
-            verbose=False,
-            language="en",
-            task="transcribe",
-            word_timestamps=True,
-        )
-    finally:
-        if os.path.exists(tmp_path):
-            os.unlink(tmp_path)
-
-
-def _transcribe_via_temp_file(url: str, model: Any) -> dict[str, Any]:
-    """Fallback: Download to temporary file, transcribe, then delete.
-
-    Args:
-        url: Video URL
-        model: Loaded Whisper model
-
-    Returns:
-        Transcription result dictionary
-    """
-    import requests
-
-    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp_file:
-        temp_path = Path(tmp_file.name)
-
-    try:
-        print(f"Downloading to temporary file: {temp_path}")
-        response = requests.get(url, stream=True, timeout=60)
-        response.raise_for_status()
-
-        total_size = int(response.headers.get("content-length", 0))
-        with tqdm(
-            total=total_size, unit="B", unit_scale=True, desc="Downloading"
-        ) as pbar:
-            with temp_path.open("wb") as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-                        pbar.update(len(chunk))
-
-        print("Transcribing from temporary file...")
-        result = model.transcribe(
-            str(temp_path),
-            verbose=False,
-            language="en",
-            task="transcribe",
-            word_timestamps=True,
-        )
-        return result
-
-    finally:
-        if temp_path.exists():
-            temp_path.unlink()
-            print(f"Deleted temporary file: {temp_path}")
-
+        for i, seg in enumerate(raw_segments)
+        if seg.text.strip()
+    ]
+    elapsed = time.time() - start_time
+    duration = float(getattr(info, "duration", 0.0) or 0.0)
+    print(
+        f"Transcribed {duration:.0f}s audio in {elapsed:.1f}s "
+        f"({len(segments)} segments)"
+    )
+    return {
+        "video": video_name,
+        "duration": duration,
+        "language": getattr(info, "language", "en") or "en",
+        "segments": segments,
+    }

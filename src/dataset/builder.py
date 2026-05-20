@@ -4,13 +4,26 @@ import argparse
 import json
 import random
 import re
+import uuid
 from pathlib import Path
 from typing import Any
 
-FrameTextPair = dict[str, str | int | float]
-TIMESTAMP_PATTERN = re.compile(
-    r"_([0-9]+(?:\.[0-9]+)?)s\.(?:jpg|jpeg|png)$", re.IGNORECASE
-)
+FrameTextPair = dict[str, str | float]
+WORD_PATTERN = re.compile(r"[A-Za-z0-9']+")
+FILLER_WORDS = {
+    "ah",
+    "er",
+    "hmm",
+    "like",
+    "mm",
+    "okay",
+    "right",
+    "uh",
+    "uhh",
+    "um",
+    "umm",
+    "yeah",
+}
 
 
 def load_transcript(transcript_path: str | Path) -> dict[str, Any]:
@@ -33,65 +46,77 @@ def load_transcript(transcript_path: str | Path) -> dict[str, Any]:
     return transcript
 
 
-def parse_frame_timestamp(frame_path: str | Path) -> float:
-    """Parse a timestamp from filenames like frame_00000_0.00s.jpg."""
-    match = TIMESTAMP_PATTERN.search(Path(frame_path).name)
-    if not match:
-        raise ValueError(f"Could not parse timestamp from frame filename: {frame_path}")
-    return float(match.group(1))
+def clean_text(text: str) -> str:
+    """Strip whitespace, collapse spacing, and remove duplicate consecutive words."""
+    words = text.strip().split()
+    deduped: list[str] = []
+    previous_word = ""
+    for word in words:
+        normalized = word.strip().lower().strip(".,!?;:\"'()[]{}")
+        if normalized and normalized == previous_word:
+            continue
+        deduped.append(word)
+        previous_word = normalized
+    return re.sub(r"\s+", " ", " ".join(deduped)).strip()
 
 
-def list_frame_files(frames_dir: str | Path) -> list[Path]:
-    """Return frame files sorted by timestamp."""
-    path = Path(frames_dir)
-    if not path.exists() or not path.is_dir():
-        raise FileNotFoundError(f"Frames directory not found: {path}")
-
-    frames = [
-        frame
-        for frame in path.iterdir()
-        if frame.is_file() and frame.suffix.lower() in {".jpg", ".jpeg", ".png"}
-    ]
-    if not frames:
-        raise ValueError(f"No frame images found in: {path}")
-    return sorted(frames, key=parse_frame_timestamp)
+def meaningful_word_count(text: str) -> int:
+    """Count non-filler words in cleaned transcript text."""
+    words = WORD_PATTERN.findall(text.lower())
+    return sum(1 for word in words if word not in FILLER_WORDS)
 
 
-def find_segment_index(timestamp: float, segments: list[dict[str, Any]]) -> int:
-    """Find the transcript segment containing a timestamp, or the nearest segment."""
-    nearest_index = 0
-    nearest_distance = float("inf")
+def build_transcript_chunks(
+    segments: list[dict[str, Any]],
+    chunk_size: int,
+    min_meaningful_words: int,
+) -> list[dict[str, str | float]]:
+    """Combine transcript segments into coherent non-overlapping text chunks."""
+    chunks: list[dict[str, str | float]] = []
+    current_texts: list[str] = []
+    current_start: float | None = None
+    current_end = 0.0
+    current_count = 0
 
-    for index, segment in enumerate(segments):
+    def flush_current() -> None:
+        if current_start is None:
+            return
+        text = clean_text(" ".join(current_texts))
+        if meaningful_word_count(text) >= min_meaningful_words:
+            chunks.append(
+                {
+                    "text": text,
+                    "start": round(current_start, 2),
+                    "end": round(current_end, 2),
+                }
+            )
+
+    for segment in segments:
+        segment_text = clean_text(str(segment.get("text", "")))
+        if not segment_text or meaningful_word_count(segment_text) == 0:
+            continue
+
         start = float(segment.get("start", 0.0))
         end = float(segment.get("end", start))
-        if start <= timestamp <= end:
-            return index
+        overlaps_current = current_start is not None and start <= current_end
+        if current_count >= chunk_size and not overlaps_current:
+            flush_current()
+            current_texts = []
+            current_start = None
+            current_end = 0.0
+            current_count = 0
 
-        distance = min(abs(timestamp - start), abs(timestamp - end))
-        if distance < nearest_distance:
-            nearest_distance = distance
-            nearest_index = index
+        if current_start is None:
+            current_start = start
+            current_end = end
+        else:
+            current_end = max(current_end, end)
 
-    return nearest_index
+        current_texts.append(segment_text)
+        current_count += 1
 
-
-def merge_context_text(
-    segments: list[dict[str, Any]],
-    segment_index: int,
-    context_window: int = 3,
-) -> str:
-    """Merge the matched segment with surrounding transcript context."""
-    if context_window < 0:
-        raise ValueError("context_window must be zero or greater")
-
-    start_index = max(0, segment_index - context_window)
-    end_index = min(len(segments), segment_index + context_window + 1)
-    texts = [
-        str(segment.get("text", "")).strip()
-        for segment in segments[start_index:end_index]
-    ]
-    return " ".join(text for text in texts if text)
+    flush_current()
+    return chunks
 
 
 def build_pairs(
@@ -101,36 +126,33 @@ def build_pairs(
     context_window: int = 3,
     min_words: int = 5,
 ) -> list[FrameTextPair]:
-    """Align frames to transcript segments and produce contrastive pairs."""
+    """Build cleaned transcript chunks for retrieval indexing."""
+    if context_window < 0:
+        raise ValueError("context_window must be zero or greater")
+
+    _ = frames_dir
     transcript = load_transcript(transcript_path)
     segments: list[dict[str, Any]] = transcript["segments"]
-    pairs: list[FrameTextPair] = []
-
-    for frame_path in list_frame_files(frames_dir):
-        timestamp = parse_frame_timestamp(frame_path)
-        segment_index = find_segment_index(timestamp, segments)
-        segment = segments[segment_index]
-        text = merge_context_text(
-            segments, segment_index, context_window=context_window
-        )
-
-        if len(text.split()) < min_words:
-            continue
-
-        pairs.append(
-            {
-                "frame_path": str(frame_path),
-                "timestamp": round(timestamp, 2),
-                "text": text,
-                "segment_id": int(segment.get("id", segment_index)),
-                "video": video_name,
-            }
-        )
+    chunks = build_transcript_chunks(
+        segments,
+        chunk_size=max(1, context_window * 2 + 1),
+        min_meaningful_words=max(10, min_words),
+    )
+    pairs: list[FrameTextPair] = [
+        {
+            "id": str(uuid.uuid4()),
+            "text": str(chunk["text"]),
+            "video": video_name,
+            "start": float(chunk["start"]),
+            "end": float(chunk["end"]),
+        }
+        for chunk in chunks
+    ]
 
     if not pairs:
         raise ValueError(
-            f"No frame/text pairs created for {video_name}. "
-            f"Check transcript timestamps, frame names, and min_words={min_words}."
+            f"No transcript chunks created for {video_name}. "
+            f"Check transcript timestamps and min_words={min_words}."
         )
     return pairs
 
@@ -271,7 +293,9 @@ def print_pair_statistics(pairs_file: str | Path) -> None:
     print(f"\n=== Pair Statistics ===")
     print(f"Total pairs created: {total_pairs}")
 
-    timestamps = [pair.get("timestamp", 0) for pair in pairs]
+    timestamps = [pair.get("start", 0) for pair in pairs] + [
+        pair.get("end", 0) for pair in pairs
+    ]
     texts = [pair.get("text", "") for pair in pairs]
 
     min_timestamp = min(timestamps)
@@ -281,14 +305,6 @@ def print_pair_statistics(pairs_file: str | Path) -> None:
     word_counts = [len(text.split()) for text in texts]
     avg_words = sum(word_counts) / len(word_counts) if word_counts else 0
     print(f"Average text length: {avg_words:.1f} words")
-
-    if pairs:
-        sample = pairs[0]
-        text_preview = sample.get("text", "")[:100]
-        print(f"\nSample pair:")
-        print(f"  frame_path: {sample.get('frame_path', 'N/A')}")
-        print(f"  timestamp: {sample.get('timestamp', 'N/A')}s")
-        print(f"  text (first 100 chars): {text_preview}")
 
 
 def print_split_statistics(output_dir: str | Path, video_name: str) -> None:

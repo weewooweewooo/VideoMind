@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import open_clip
@@ -72,7 +73,11 @@ class CLIPEmbedder:
         tokens = self.tokenizer([text]).to(self.device)
         with torch.no_grad():
             embeddings = F.normalize(self.model.encode_text(tokens), dim=-1)
-        return embeddings.detach().cpu().numpy()[0]
+        return embeddings.detach().cpu().numpy()[0].astype(np.float32)
+
+    def query_embedding(self, text: str) -> np.ndarray:
+        """Embed one retrieval query as a normalized float32 numpy vector."""
+        return self.embed_text(text)
 
     def embed_batch_images(self, paths: list[str | Path], batch_size: int = 32) -> np.ndarray:
         """Embed image paths as normalized numpy vectors."""
@@ -89,3 +94,35 @@ class CLIPEmbedder:
             batches.append(embeddings.detach().cpu().numpy())
 
         return np.vstack(batches)
+
+    def embed_frames_from_memory(
+        self,
+        frames: list[dict[str, Any]],
+        batch_size: int = 32,
+    ) -> list[dict[str, Any]]:
+        """Embed in-memory PIL frames and preserve their timestamps."""
+        if not frames:
+            return []
+
+        embedded_frames: list[dict[str, Any]] = []
+        for start in range(0, len(frames), batch_size):
+            batch = frames[start : start + batch_size]
+            image_tensor = torch.stack(
+                [self.preprocess(frame["image"].convert("RGB")) for frame in batch]
+            ).to(self.device)
+            with torch.no_grad():
+                embeddings = F.normalize(self.model.encode_image(image_tensor), dim=-1)
+            for frame, embedding in zip(batch, embeddings.detach().cpu().numpy()):
+                embedded_frames.append(
+                    {
+                        "embedding": embedding,
+                        "timestamp": float(frame["timestamp"]),
+                    }
+                )
+
+        return embedded_frames
+
+
+def embed_frames_from_memory(frames: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Embed in-memory frame dictionaries with a default OpenCLIP embedder."""
+    return CLIPEmbedder().embed_frames_from_memory(frames)

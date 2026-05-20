@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import concurrent.futures
+import logging
 from pathlib import Path
+import time
 from typing import Any
 
 from src.ingestion.archive_search import sanitize_title, search_archive_org
@@ -12,6 +15,8 @@ from src.ingestion.sector_analyzer import (
     convert_llm_sectors_to_dict,
     display_sectors,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def filter_videos(videos: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -95,10 +100,7 @@ def display_videos(videos: list[dict[str, Any]]) -> tuple[bool, list[int]]:
 
 
 def process_video_from_url(url: str, video_name: str | None = None) -> bool:
-    """Stream and process a video from URL without downloading it to disk.
-
-    Extracts frames and transcribes directly from URL.
-    If streaming fails, falls back to temporary file.
+    """Stream, transcribe, embed, and index a video without writing files.
 
     Args:
         url: Video URL
@@ -108,9 +110,10 @@ def process_video_from_url(url: str, video_name: str | None = None) -> bool:
         True if successful, False otherwise
     """
     try:
-        from src.ingestion.extractor import extract_frames_from_url
-        from src.ingestion.transcriber import transcribe_url
-        from src.dataset.builder import build_video_pairs
+        from src.ingestion.extractor import extract_frames_to_memory
+        from src.ingestion.transcriber import transcribe_to_memory
+        from src.retrieval.embedder import embed_frames_from_memory
+        from src.retrieval.store import VideoMindStore
 
         if video_name is None:
             video_name = Path(url.split("?")[0]).stem or "video"
@@ -118,28 +121,30 @@ def process_video_from_url(url: str, video_name: str | None = None) -> bool:
         resolved_url = resolve_direct_url(url)
         if resolved_url != url:
             url = resolved_url
-            print(f"Resolved direct URL: {url}")
+            logger.debug("Resolved direct URL: %s", url)
 
         print(f"\nProcessing video: {video_name}")
-        print(f"Source: {url[:80]}...")
         print("=" * 70)
 
-        print("\n1. Extracting frames from URL...")
-        extract_frames_from_url(url, video_name=video_name)
+        start = time.time()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            frames_future = executor.submit(extract_frames_to_memory, url)
+            transcript_future = executor.submit(transcribe_to_memory, url, video_name)
+            frames = frames_future.result()
+            transcript = transcript_future.result()
+        elapsed = time.time() - start
+        print(f"Ingestion complete in {elapsed:.1f}s")
 
-        print("\n2. Transcribing audio from URL...")
-        transcribe_url(url, video_name=video_name)
+        embeddings = embed_frames_from_memory(frames)
+        indexed = VideoMindStore().index_frames_from_memory(
+            embeddings, transcript, video_name
+        )
 
-        frames_dir = Path("data/frames") / video_name
-        if frames_dir.exists():
-            print("\n3. Building training pairs...")
-            build_video_pairs(frames_dir)
-
-        print("\n✓ Video processed successfully (no local file saved)")
+        print(f"\nVideo processed successfully ({indexed} frames indexed)")
         return True
 
     except Exception as exc:
-        print(f"\n✗ Processing failed: {exc}")
+        print(f"\nProcessing failed: {exc}")
         import traceback
 
         traceback.print_exc()
@@ -188,7 +193,7 @@ def discover_and_download(
         print(f"No lecture videos found in {found_label}")
         return
 
-    print(f"\n✓ Found {len(filtered_videos)} lecture videos for \"{found_label}\"")
+    print(f"\nFound {len(filtered_videos)} lecture videos for \"{found_label}\"")
 
     _, selected_indices = display_videos(filtered_videos)
 
@@ -226,7 +231,5 @@ def discover_and_download(
     print(f"{'='*70}")
     print(f"Successfully processed: {success_count}")
     print(f"Failed: {failed_count}")
-    print("\nFrames and transcripts saved to data/frames/ and data/transcripts/")
-    print("Training pairs saved to data/pairs/")
-    print("No video files saved (streamed directly)")
+    print("\nNo video, frame, or transcript files saved (processed in memory)")
     print(f"{'='*70}\n")

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import math
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,8 @@ from src.dataset.loader import (
 )
 from src.training.loss import InfoNCELoss
 from src.utils.model_utils import resolve_device
+
+logger = logging.getLogger(__name__)
 
 
 def create_cosine_scheduler(
@@ -89,7 +92,13 @@ def run_epoch(
             if scheduler is not None:
                 scheduler.step()
             learning_rate = optimizer.param_groups[0]["lr"]
-            print(f"epoch={epoch} step={step} loss={loss.item():.6f} lr={learning_rate:.8f}")
+            logger.debug(
+                "epoch=%s step=%s loss=%.6f lr=%.8f",
+                epoch,
+                step,
+                loss.item(),
+                learning_rate,
+            )
 
         total_loss += float(loss.detach().cpu())
         total_steps += 1
@@ -256,6 +265,8 @@ def train(
 
 def main() -> None:
     """Run OpenCLIP fine-tuning from the command line."""
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
     parser = argparse.ArgumentParser(description="Fine-tune OpenCLIP for VideoMind lecture retrieval.")
     parser.add_argument("--dataset", default="data/pairs", help="Pair directory or JSON dataset path.")
     parser.add_argument("--epochs", type=int, default=10, help="Maximum number of epochs.")

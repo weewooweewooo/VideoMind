@@ -1,6 +1,11 @@
 # Data — never commit
-data/
-checkpoints/
+data/pairs/
+data/baseline_results.json
+
+# These no longer exist but keep for safety
+data/frames/
+data/videos/
+data/transcripts/
 
 # Python
 __pycache__/

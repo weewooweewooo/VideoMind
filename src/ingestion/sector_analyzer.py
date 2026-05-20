@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 def analyze_sectors_with_llm(
@@ -22,7 +25,7 @@ def analyze_sectors_with_llm(
         import json
         import socket
     except ImportError:
-        print("Note: langchain_ollama not installed. Skipping sector selection.")
+        logger.warning("langchain_ollama not installed; skipping sector selection")
         return None
 
     titles_list = "\n".join(
@@ -71,13 +74,13 @@ Rules:
                 return False
 
         if not is_ollama_available():
-            print("Ollama server not available (http://localhost:11434)")
-            print("LLM categorization failed — skipping sector selection")
+            logger.warning("Ollama server not available at http://localhost:11434")
+            logger.warning("LLM categorization failed — skipping sector selection")
             return None
 
         llm = OllamaLLM(model="llama3.2:3b", temperature=0)
 
-        print("\nAnalyzing content with local AI (LLaMA 3.2)...")
+        logger.info("Analyzing content with local AI (LLaMA 3.2)")
         response = llm.invoke(prompt)
 
         clean = response.strip()
@@ -88,8 +91,8 @@ Rules:
         result = json.loads(clean)
         return result
     except Exception as exc:
-        print(f"LLM analysis failed: {exc}")
-        print("LLM categorization failed — skipping sector selection")
+        logger.error("LLM analysis failed: %s", exc)
+        logger.warning("LLM categorization failed — skipping sector selection")
         return None
 
 
