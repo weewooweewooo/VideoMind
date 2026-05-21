@@ -36,7 +36,7 @@ Only frames, transcripts, and training pairs are saved.
     parser.add_argument("--discover", type=str, help="Discover and process videos by topic (interactive mode)")
     parser.add_argument("--url", type=str, help="Single video URL to process (archive.org, vimeo, youtube, or direct MP4)")
     parser.add_argument("--batch", type=str, help="Text file with one URL per line for batch processing")
-    parser.add_argument("--output", type=str, default="data/videos", help="Output directory for frames/transcripts (default: data/videos prefix, actual: data/frames, data/transcripts)")
+    parser.add_argument("--output", type=str, default="data/videos", help="Reserved output directory option kept for compatibility")
     parser.add_argument("--limit", type=int, default=5, help="Maximum videos to discover/process (default: 5)")
     parser.add_argument("--force", action="store_true", help="Force re-process even if data exists")
 
@@ -60,9 +60,9 @@ Only frames, transcripts, and training pairs are saved.
                 url = resolved_url
                 logger.debug("Resolved direct URL: %s", url)
             if process_video_from_url(url, video_name):
-                print(f"\n✓ Success")
+                print("\nSuccess")
             else:
-                print("\n✗ Processing failed")
+                print("\nProcessing failed")
                 sys.exit(1)
         else:
             batch_file = Path(args.batch)
@@ -117,9 +117,7 @@ Only frames, transcripts, and training pairs are saved.
         sys.exit(1)
     except Exception as exc:
         print(f"\nFatal error: {exc}")
-        import traceback
-
-        traceback.print_exc()
+        logger.exception("Fatal downloader error")
         sys.exit(1)
 
 

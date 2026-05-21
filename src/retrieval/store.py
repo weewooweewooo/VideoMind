@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import uuid
 from pathlib import Path
@@ -17,6 +18,7 @@ from redisvl.query import VectorQuery
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 INDEX_NAME = "videomind"
 VECTOR_DIM = 512
+logger = logging.getLogger(__name__)
 
 schema = {
     "index": {
@@ -54,9 +56,8 @@ class VideoMindStore:
 
     def index_video(self, pairs: list[dict[str, Any]]) -> int:
         """Index video pairs into Redis."""
-        docs: list[dict[str, Any]] = []
-        for pair in pairs:
-            doc = {
+        docs = [
+            {
                 "id": pair.get("id", str(uuid.uuid4())),
                 "video": pair["video"],
                 "text": pair["text"],
@@ -64,11 +65,40 @@ class VideoMindStore:
                 "end": float(pair.get("end", 0)),
                 "embedding": np.array(pair["embedding"], dtype=np.float32).tobytes(),
             }
-            docs.append(doc)
+            for pair in pairs
+        ]
 
         if docs:
             self.index.load(docs, id_field="id")
         return len(docs)
+
+    def _nearest_segment(
+        self, timestamp: float, segments: list[dict[str, Any]]
+    ) -> dict[str, Any] | None:
+        """Return the transcript segment closest to a frame timestamp."""
+        best_segment = None
+        best_distance = float("inf")
+        for segment in segments:
+            start = float(segment["start"])
+            end = float(segment["end"])
+            if start <= timestamp <= end:
+                return segment
+            distance = min(abs(timestamp - start), abs(timestamp - end))
+            if distance < best_distance:
+                best_distance = distance
+                best_segment = segment
+        return best_segment
+
+    def _segment_context(
+        self, segment: dict[str, Any], segments: list[dict[str, Any]]
+    ) -> str:
+        """Build local transcript context around a matched segment."""
+        segment_index = segments.index(segment)
+        start_index = max(0, segment_index - 3)
+        end_index = min(len(segments), segment_index + 4)
+        return " ".join(
+            str(item["text"]) for item in segments[start_index:end_index]
+        ).strip()
 
     def index_frames_from_memory(
         self,
@@ -83,32 +113,11 @@ class VideoMindStore:
 
         docs: list[dict[str, Any]] = []
         for frame in frames_with_embeddings:
-            ts = float(frame["timestamp"])
-            embedding = frame["embedding"]
-
-            best_seg = None
-            best_dist = float("inf")
-            for seg in segments:
-                start = float(seg["start"])
-                end = float(seg["end"])
-                if start <= ts <= end:
-                    best_seg = seg
-                    break
-                dist = min(abs(ts - start), abs(ts - end))
-                if dist < best_dist:
-                    best_dist = dist
-                    best_seg = seg
-
-            if best_seg is None:
+            segment = self._nearest_segment(float(frame["timestamp"]), segments)
+            if segment is None:
                 continue
 
-            seg_idx = segments.index(best_seg)
-            start_idx = max(0, seg_idx - 3)
-            end_idx = min(len(segments), seg_idx + 4)
-            context = " ".join(
-                str(segment["text"]) for segment in segments[start_idx:end_idx]
-            ).strip()
-
+            context = self._segment_context(segment, segments)
             if len(context.split()) < 5:
                 continue
 
@@ -116,9 +125,9 @@ class VideoMindStore:
                 "id": str(uuid.uuid4()),
                 "video": video_name,
                 "text": context,
-                "start": float(best_seg["start"]),
-                "end": float(best_seg["end"]),
-                "embedding": np.array(embedding, dtype=np.float32).tobytes(),
+                "start": float(segment["start"]),
+                "end": float(segment["end"]),
+                "embedding": np.array(frame["embedding"], dtype=np.float32).tobytes(),
             }
             docs.append(doc)
 
@@ -136,27 +145,41 @@ class VideoMindStore:
         if top_k <= 0:
             raise ValueError("top_k must be greater than zero")
 
+        query_vector = np.array(text_embedding, dtype=np.float32)
+        logger.debug(
+            "Redis vector query embedding shape=%s dtype=%s",
+            query_vector.shape,
+            query_vector.dtype,
+        )
+
         query = VectorQuery(
-            vector=text_embedding.astype(np.float32).tobytes(),
+            vector=query_vector.tobytes(),
             vector_field_name="embedding",
             return_fields=["id", "video", "text", "start", "end"],
             num_results=top_k,
         )
+        query.dialect(2)
 
         if video_name:
             query.set_filter(f"@video:{{{video_name}}}")
 
         results = self.index.query(query)
-        return [
-            {
-                "video": result["video"],
-                "text": result["text"],
-                "start": float(result["start"]),
-                "end": float(result["end"]),
-                "score": 1 - float(result.get("vector_distance", 1)),
-            }
-            for result in results
-        ]
+        logger.debug("Redis vector query raw results=%d", len(results))
+        if results:
+            logger.debug("Redis vector query first result=%s", results[0])
+
+        return [self._parse_query_result(result) for result in results]
+
+    def _parse_query_result(self, result: dict[str, Any]) -> dict[str, Any]:
+        """Convert one RedisVL result into the API source shape."""
+        vector_distance = result.get("vector_distance", 1)
+        return {
+            "video": result["video"],
+            "text": result["text"],
+            "start": float(result["start"]),
+            "end": float(result["end"]),
+            "score": 1 - float(vector_distance),
+        }
 
     def list_videos(self) -> list[str]:
         """List all indexed video names."""

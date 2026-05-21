@@ -101,6 +101,20 @@ def _archive_identifier(video_path_or_url: str) -> str | None:
     return None
 
 
+def _create_whisper_model(
+    model_size: str,
+    device: str,
+    compute_type: str,
+) -> WhisperModel:
+    """Create a Whisper model, preferring the configured local cache path."""
+    local_model_path = os.environ.get(
+        "WHISPER_MODEL_PATH", f"D:/models/faster-whisper-{model_size}"
+    )
+    if os.path.exists(local_model_path):
+        return WhisperModel(local_model_path, device=device, compute_type=compute_type)
+    return WhisperModel(model_size, device=device, compute_type=compute_type)
+
+
 def transcribe_to_memory(
     video_path_or_url: str,
     video_name: str,
@@ -117,13 +131,7 @@ def transcribe_to_memory(
             return existing
 
     start_time = time.time()
-    local_model_path = os.environ.get(
-        "WHISPER_MODEL_PATH", f"D:/models/faster-whisper-{model_size}"
-    )
-    if os.path.exists(local_model_path):
-        model = WhisperModel(local_model_path, device=device, compute_type=compute_type)
-    else:
-        model = WhisperModel(model_size, device=device, compute_type=compute_type)
+    model = _create_whisper_model(model_size, device, compute_type)
     segments_gen, info = model.transcribe(
         video_path_or_url,
         beam_size=5,
@@ -151,9 +159,11 @@ def transcribe_to_memory(
     ]
     elapsed = time.time() - start_time
     duration = float(getattr(info, "duration", 0.0) or 0.0)
-    print(
-        f"Transcribed {duration:.0f}s audio in {elapsed:.1f}s "
-        f"({len(segments)} segments)"
+    logger.info(
+        "Transcribed %.0fs audio in %.1fs (%s segments)",
+        duration,
+        elapsed,
+        len(segments),
     )
     return {
         "video": video_name,

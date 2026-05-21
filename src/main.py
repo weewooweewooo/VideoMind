@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import json
 import logging
 import time
 import uuid
@@ -11,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 
 from src.ingestion.archive_utils import resolve_direct_url
@@ -107,6 +109,12 @@ class DeleteSessionResponse(BaseModel):
     cleared: bool
 
 
+class ClearQueryCacheResponse(BaseModel):
+    """Response returned after clearing cached query answers."""
+
+    cleared: bool
+
+
 class VideosResponse(BaseModel):
     """Indexed video list response."""
 
@@ -190,6 +198,14 @@ def cleanup_response(result: dict[str, Any]) -> CleanupResponse:
     )
 
 
+def _check_already_indexed(
+    video_name: str, store: VideoMindStore | None = None
+) -> bool:
+    """Return whether a video already has indexed Redis documents."""
+    target_store = store or get_store()
+    return video_name in target_store.list_videos()
+
+
 def ingest_video_sync(
     video_path: str | None = None,
     url: str | None = None,
@@ -217,6 +233,36 @@ def ingest_video_sync(
         raise ValueError("Either video_path or url must be provided")
 
 
+def _resolve_ingest_source(
+    source: str,
+    video_name: str | None,
+    is_url: bool,
+) -> tuple[str, str]:
+    """Resolve a local path or URL to the source and video name used for ingestion."""
+    if is_url:
+        resolved_source = resolve_direct_url(source)
+        if video_name is None:
+            video_name = Path(source.split("?")[0]).stem or "video"
+        return resolved_source, video_name
+
+    path = Path(source)
+    if not path.exists() or not path.is_file():
+        raise FileNotFoundError(f"Video file not found: {path}")
+    return str(path), video_name or path.stem
+
+
+def _extract_video_assets(
+    resolved_source: str, video_name: str
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Extract frames and transcript concurrently for an ingest source."""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        frames_future = executor.submit(extract_frames_to_memory, resolved_source)
+        transcript_future = executor.submit(
+            transcribe_to_memory, resolved_source, video_name
+        )
+        return frames_future.result(), transcript_future.result()
+
+
 def _ingest_video_source(
     source: str,
     video_name: str | None,
@@ -224,33 +270,17 @@ def _ingest_video_source(
     is_url: bool,
 ) -> dict[str, Any]:
     """Ingest a local path or URL through the in-memory pipeline."""
-    if is_url:
-        resolved_source = resolve_direct_url(source)
-        if video_name is None:
-            video_name = Path(source.split("?")[0]).stem or "video"
-    else:
-        path = Path(source)
-        if not path.exists() or not path.is_file():
-            raise FileNotFoundError(f"Video file not found: {path}")
-        resolved_source = str(path)
-        if video_name is None:
-            video_name = path.stem
+    resolved_source, video_name = _resolve_ingest_source(source, video_name, is_url)
 
     logger.info("Ingesting video in memory")
     start = time.time()
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-        frames_future = executor.submit(extract_frames_to_memory, resolved_source)
-        transcript_future = executor.submit(
-            transcribe_to_memory, resolved_source, video_name
-        )
-        frames = frames_future.result()
-        transcript = transcript_future.result()
+    frames, transcript = _extract_video_assets(resolved_source, video_name)
     elapsed = time.time() - start
     logger.info("In-memory extraction and transcription finished in %.1fs", elapsed)
 
     embeddings = embed_frames_from_memory(frames)
     store = get_store()
-    if force and video_name in store.list_videos():
+    if force and _check_already_indexed(video_name, store):
         store.delete_video(video_name)
     indexed = store.index_frames_from_memory(embeddings, transcript, video_name)
 
@@ -307,6 +337,29 @@ async def query_video(request: QueryRequest) -> QueryResponse:
         raise HTTPException(status_code=500, detail=f"Query failed: {exc}") from exc
 
 
+@app.post("/query/stream")
+async def query_video_stream(request: QueryRequest) -> StreamingResponse:
+    """Stream an answer against indexed video content as SSE events."""
+    if not request.question.strip():
+        raise HTTPException(status_code=400, detail="question must not be empty")
+
+    current_time = time.time()
+    clear_expired_sessions(current_time)
+    session_id = request.session_id or str(uuid.uuid4())
+    pipeline = get_session_pipeline(session_id)
+    session_timestamps[session_id] = current_time
+
+    def event_stream():
+        try:
+            for event in pipeline.query_stream(request.question, session_id=session_id):
+                yield f"data: {json.dumps(event)}\n\n"
+            yield f"data: {json.dumps({'done': True})}\n\n"
+        except Exception as exc:
+            yield f"data: {json.dumps({'error': f'Query failed: {exc}'})}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
 @app.delete("/sessions/{session_id}", response_model=DeleteSessionResponse)
 async def clear_session(session_id: str) -> DeleteSessionResponse:
     """Clear conversation history for a session."""
@@ -342,6 +395,19 @@ async def get_session_history(session_id: str) -> SessionHistoryResponse:
     except Exception as exc:
         raise HTTPException(
             status_code=500, detail=f"Could not get session history: {exc}"
+        ) from exc
+
+
+@app.delete("/cache/queries", response_model=ClearQueryCacheResponse)
+async def clear_query_cache() -> ClearQueryCacheResponse:
+    """Clear cached query responses."""
+    try:
+        pipeline = next(iter(sessions.values()), None) or get_pipeline()
+        await asyncio.to_thread(pipeline.clear_cache)
+        return ClearQueryCacheResponse(cleared=True)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500, detail=f"Could not clear query cache: {exc}"
         ) from exc
 
 

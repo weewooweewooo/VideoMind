@@ -6,17 +6,16 @@ from typing import Any, Callable
 
 import open_clip
 import torch
-from PIL import Image, UnidentifiedImageError
 from torch.utils.data import Dataset
-
 
 DEFAULT_CLIP_MODEL = "ViT-B-32"
 DEFAULT_CLIP_PRETRAINED = "openai"
-ImageTransform = Callable[[Image.Image], torch.Tensor]
 TextTokenizer = Callable[[list[str]], torch.Tensor]
 
 
-def load_pair_records(dataset_path: str | Path, split: str | None = None) -> list[dict[str, Any]]:
+def load_pair_records(
+    dataset_path: str | Path, split: str | None = None
+) -> list[dict[str, Any]]:
     """Load one pair JSON file or all matching split JSON files from a directory."""
     path = Path(dataset_path)
     if not path.exists():
@@ -31,7 +30,9 @@ def load_pair_records(dataset_path: str | Path, split: str | None = None) -> lis
             files = [file for file in files if file.name.endswith("_pairs.json")]
 
     if not files:
-        raise FileNotFoundError(f"No dataset JSON files found in {path} for split={split!r}")
+        raise FileNotFoundError(
+            f"No dataset JSON files found in {path} for split={split!r}"
+        )
 
     records: list[dict[str, Any]] = []
     for file in files:
@@ -48,48 +49,40 @@ def load_pair_records(dataset_path: str | Path, split: str | None = None) -> lis
     return records
 
 
-def create_open_clip_preprocessors(
+def create_open_clip_tokenizer(
     model_name: str = DEFAULT_CLIP_MODEL,
     pretrained: str = DEFAULT_CLIP_PRETRAINED,
-) -> tuple[ImageTransform, ImageTransform, TextTokenizer]:
-    """Create OpenCLIP train/validation image transforms and tokenizer."""
-    _, preprocess_train, preprocess_val = open_clip.create_model_and_transforms(
-        model_name,
-        pretrained=pretrained,
-    )
+) -> TextTokenizer:
+    """Create OpenCLIP tokenizer."""
     tokenizer = open_clip.get_tokenizer(model_name)
-    return preprocess_train, preprocess_val, tokenizer
+    return tokenizer
 
 
 class CLIPLectureDataset(Dataset):
-    """Load aligned lecture frame/text pairs for OpenCLIP fine-tuning."""
+    """Load lecture text pairs for text-only contrastive learning.
+
+    Note: Image encoding disabled until frame pipeline is integrated.
+    Returns blank image tensors as placeholders for now.
+    """
 
     def __init__(
         self,
         dataset_path: str | Path,
         split: str | None = None,
-        preprocess: ImageTransform | None = None,
         tokenizer: TextTokenizer | None = None,
         model_name: str = DEFAULT_CLIP_MODEL,
         pretrained: str = DEFAULT_CLIP_PRETRAINED,
-        is_train: bool | None = None,
     ) -> None:
-        """Initialize the dataset and OpenCLIP preprocessing components."""
+        """Initialize the dataset and OpenCLIP tokenizer."""
         self.records = load_pair_records(dataset_path, split=split)
         self.split = split
 
-        if preprocess is None or tokenizer is None:
-            preprocess_train, preprocess_val, created_tokenizer = create_open_clip_preprocessors(
+        if tokenizer is None:
+            tokenizer = create_open_clip_tokenizer(
                 model_name=model_name,
                 pretrained=pretrained,
             )
-            if preprocess is None:
-                train_mode = split == "train" if is_train is None else is_train
-                preprocess = preprocess_train if train_mode else preprocess_val
-            if tokenizer is None:
-                tokenizer = created_tokenizer
 
-        self.preprocess = preprocess
         self.tokenizer = tokenizer
 
     def __len__(self) -> int:
@@ -97,28 +90,21 @@ class CLIPLectureDataset(Dataset):
         return len(self.records)
 
     def __getitem__(self, index: int) -> dict[str, Any]:
-        """Return one processed OpenCLIP image/text item."""
+        """Return one processed text-only item (image frames not yet available)."""
         record = self.records[index]
-        frame_path = Path(str(record.get("frame_path", "")))
-        if not frame_path.exists():
-            raise FileNotFoundError(f"Frame image not found: {frame_path}")
-
-        try:
-            image = Image.open(frame_path).convert("RGB")
-        except (OSError, UnidentifiedImageError) as exc:
-            raise ValueError(f"Could not read frame image: {frame_path}") from exc
-
         text = str(record.get("text", ""))
+        if not text:
+            raise ValueError(f"Record at index {index} has no text field")
+
         text_tokens = self.tokenizer([text]).squeeze(0)
+        image_tensor = torch.zeros(3, 224, 224)
 
         return {
-            "image": self.preprocess(image),
-            "text_tokens": text_tokens,
-            "timestamp": float(record.get("timestamp", 0.0)),
+            "image": image_tensor,
+            "text_input_ids": text_tokens,
+            "text_attention_mask": torch.ones_like(text_tokens),
             "video": str(record.get("video", "")),
-            "segment_id": int(record.get("segment_id", -1)),
-            "frame_path": str(frame_path),
-            "text": text,
+            "start": float(record.get("start", 0.0)),
         }
 
 
@@ -126,10 +112,12 @@ def collate_clip_batch(batch: list[dict[str, Any]]) -> dict[str, Any]:
     """Collate CLIPLectureDataset items into a batch."""
     return {
         "image": torch.stack([item["image"] for item in batch]),
-        "text_tokens": torch.stack([item["text_tokens"] for item in batch]).long(),
-        "timestamp": torch.tensor([item["timestamp"] for item in batch], dtype=torch.float32),
+        "text_input_ids": torch.stack(
+            [item["text_input_ids"] for item in batch]
+        ).long(),
+        "text_attention_mask": torch.stack(
+            [item["text_attention_mask"] for item in batch]
+        ).long(),
         "video": [item["video"] for item in batch],
-        "segment_id": torch.tensor([item["segment_id"] for item in batch], dtype=torch.long),
-        "frame_path": [item["frame_path"] for item in batch],
-        "text": [item["text"] for item in batch],
+        "start": torch.tensor([item["start"] for item in batch], dtype=torch.float32),
     }

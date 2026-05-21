@@ -2,10 +2,22 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import socket
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+def is_ollama_available(host: str = "localhost", port: int = 11434) -> bool:
+    """Check whether the local Ollama server is reachable."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(2)
+            return sock.connect_ex((host, port)) == 0
+    except OSError:
+        return False
 
 
 def analyze_sectors_with_llm(
@@ -22,8 +34,6 @@ def analyze_sectors_with_llm(
     """
     try:
         from langchain_ollama import OllamaLLM
-        import json
-        import socket
     except ImportError:
         logger.warning("langchain_ollama not installed; skipping sector selection")
         return None
@@ -62,20 +72,9 @@ Rules:
 - Return ONLY the JSON object"""
 
     try:
-        def is_ollama_available():
-            """Quick check if Ollama server is reachable."""
-            try:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(2)
-                result = sock.connect_ex(('localhost', 11434))
-                sock.close()
-                return result == 0
-            except Exception:
-                return False
-
         if not is_ollama_available():
             logger.warning("Ollama server not available at http://localhost:11434")
-            logger.warning("LLM categorization failed — skipping sector selection")
+            logger.warning("LLM categorization failed; skipping sector selection")
             return None
 
         llm = OllamaLLM(model="llama3.2:3b", temperature=0)
@@ -92,7 +91,7 @@ Rules:
         return result
     except Exception as exc:
         logger.error("LLM analysis failed: %s", exc)
-        logger.warning("LLM categorization failed — skipping sector selection")
+        logger.warning("LLM categorization failed; skipping sector selection")
         return None
 
 

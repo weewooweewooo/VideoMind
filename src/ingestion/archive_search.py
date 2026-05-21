@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import re
 import logging
+import re
 from typing import Any
 
 import requests
@@ -111,7 +111,7 @@ def fetch_video_metadata(item: dict[str, Any]) -> dict[str, Any] | None:
             "url": url,
         }
 
-    except Exception as exc:
+    except Exception:
         return None
 
 

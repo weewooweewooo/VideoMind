@@ -19,12 +19,13 @@ from tqdm import tqdm
 
 from src.dataset.loader import (
     CLIPLectureDataset,
-    DEFAULT_CLIP_MODEL,
     DEFAULT_CLIP_PRETRAINED,
     collate_clip_batch,
 )
 from src.training.loss import InfoNCELoss
 from src.utils.model_utils import resolve_device
+
+DEFAULT_CLIP_MODEL = "ViT-B-32"
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,9 @@ def create_cosine_scheduler(
     def lr_lambda(step: int) -> float:
         if warmup_steps > 0 and step < warmup_steps:
             return float(step) / float(max(1, warmup_steps))
-        progress = float(step - warmup_steps) / float(max(1, total_steps - warmup_steps))
+        progress = float(step - warmup_steps) / float(
+            max(1, total_steps - warmup_steps)
+        )
         return max(0.0, 0.5 * (1.0 + math.cos(progress * math.pi)))
 
     return LambdaLR(optimizer, lr_lambda)
@@ -55,10 +58,19 @@ def move_batch_to_device(batch: dict[str, Any], device: torch.device) -> dict[st
     }
 
 
-def encode_batch(model: nn.Module, batch: dict[str, Any]) -> tuple[torch.Tensor, torch.Tensor]:
-    """Run OpenCLIP encoders and return image/text embeddings."""
-    image_embeddings = model.encode_image(batch["image"])
-    text_embeddings = model.encode_text(batch["text_tokens"])
+def encode_batch(
+    model: nn.Module, batch: dict[str, Any]
+) -> tuple[torch.Tensor | None, torch.Tensor]:
+    """Run OpenCLIP encoders and return image/text embeddings.
+
+    Image encoding disabled until frame pipeline integrated.
+    Returns None for image embeddings if image is zeros tensor.
+    """
+    image_embeddings = None
+    if not torch.allclose(batch["image"], torch.zeros_like(batch["image"])):
+        image_embeddings = model.encode_image(batch["image"])
+
+    text_embeddings = model.encode_text(batch["text_input_ids"])
     return image_embeddings, text_embeddings
 
 
@@ -71,19 +83,31 @@ def run_epoch(
     scheduler: LambdaLR | None = None,
     epoch: int = 0,
 ) -> float:
-    """Run one train or validation epoch and return mean loss."""
+    """Run one train or validation epoch and return mean loss.
+
+    Image encoding disabled until frame pipeline integrated.
+    Only computes text-text contrastive loss for now.
+    """
     is_training = optimizer is not None
     model.train(is_training)
     total_loss = 0.0
     total_steps = 0
-    progress = tqdm(dataloader, desc=f"{'train' if is_training else 'val'} epoch {epoch}", leave=False)
+    progress = tqdm(
+        dataloader,
+        desc=f"{'train' if is_training else 'val'} epoch {epoch}",
+        leave=False,
+    )
 
     for step, raw_batch in enumerate(progress, start=1):
         batch = move_batch_to_device(raw_batch, device)
 
         with torch.set_grad_enabled(is_training):
             image_embeddings, text_embeddings = encode_batch(model, batch)
-            loss = criterion(image_embeddings, text_embeddings)
+
+            if image_embeddings is None:
+                loss = criterion(text_embeddings, text_embeddings)
+            else:
+                loss = criterion(image_embeddings, text_embeddings)
 
         if is_training:
             optimizer.zero_grad(set_to_none=True)
@@ -138,7 +162,9 @@ def save_checkpoint(
         },
         checkpoint_file,
     )
-    (checkpoint_dir / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+    (checkpoint_dir / "metrics.json").write_text(
+        json.dumps(metrics, indent=2), encoding="utf-8"
+    )
     return checkpoint_dir
 
 
@@ -166,13 +192,15 @@ def train(
     output_path.mkdir(parents=True, exist_ok=True)
 
     try:
-        model, preprocess_train, preprocess_val = open_clip.create_model_and_transforms(
+        model, _, _ = open_clip.create_model_and_transforms(
             model_name,
             pretrained=pretrained,
         )
         tokenizer = open_clip.get_tokenizer(model_name)
     except Exception as exc:
-        raise RuntimeError(f"Could not create OpenCLIP model {model_name!r} with pretrained={pretrained!r}") from exc
+        raise RuntimeError(
+            f"Could not create OpenCLIP model {model_name!r} with pretrained={pretrained!r}"
+        ) from exc
 
     model.to(torch_device)
     criterion = InfoNCELoss().to(torch_device)
@@ -180,20 +208,16 @@ def train(
     train_dataset = CLIPLectureDataset(
         dataset,
         split="train",
-        preprocess=preprocess_train,
         tokenizer=tokenizer,
         model_name=model_name,
         pretrained=pretrained,
-        is_train=True,
     )
     val_dataset = CLIPLectureDataset(
         dataset,
         split="val",
-        preprocess=preprocess_val,
         tokenizer=tokenizer,
         model_name=model_name,
         pretrained=pretrained,
-        is_train=False,
     )
     train_loader = DataLoader(
         train_dataset,
@@ -219,16 +243,22 @@ def train(
     )
     total_steps = max(1, len(train_loader) * epochs)
     warmup_steps = int(total_steps * warmup_ratio)
-    scheduler = create_cosine_scheduler(optimizer, total_steps=total_steps, warmup_steps=warmup_steps)
+    scheduler = create_cosine_scheduler(
+        optimizer, total_steps=total_steps, warmup_steps=warmup_steps
+    )
 
     best_val_loss = float("inf")
     best_checkpoint: Path | None = None
     stale_epochs = 0
 
     for epoch in range(1, epochs + 1):
-        train_loss = run_epoch(model, criterion, train_loader, torch_device, optimizer, scheduler, epoch)
+        train_loss = run_epoch(
+            model, criterion, train_loader, torch_device, optimizer, scheduler, epoch
+        )
         with torch.no_grad():
-            val_loss = run_epoch(model, criterion, val_loader, torch_device, optimizer=None, epoch=epoch)
+            val_loss = run_epoch(
+                model, criterion, val_loader, torch_device, optimizer=None, epoch=epoch
+            )
 
         metrics = {
             "train_loss": train_loss,
@@ -246,7 +276,9 @@ def train(
             model_name=model_name,
             pretrained=pretrained,
         )
-        print(f"epoch={epoch} train_loss={train_loss:.6f} val_loss={val_loss:.6f} checkpoint={checkpoint}")
+        print(
+            f"epoch={epoch} train_loss={train_loss:.6f} val_loss={val_loss:.6f} checkpoint={checkpoint}"
+        )
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
@@ -255,7 +287,9 @@ def train(
         else:
             stale_epochs += 1
             if stale_epochs >= patience:
-                print(f"Early stopping after {epoch} epochs; best_val_loss={best_val_loss:.6f}")
+                print(
+                    f"Early stopping after {epoch} epochs; best_val_loss={best_val_loss:.6f}"
+                )
                 break
 
     if best_checkpoint is None:
@@ -267,14 +301,28 @@ def main() -> None:
     """Run OpenCLIP fine-tuning from the command line."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
-    parser = argparse.ArgumentParser(description="Fine-tune OpenCLIP for VideoMind lecture retrieval.")
-    parser.add_argument("--dataset", default="data/pairs", help="Pair directory or JSON dataset path.")
-    parser.add_argument("--epochs", type=int, default=10, help="Maximum number of epochs.")
-    parser.add_argument("--batch-size", type=int, default=32, help="Training batch size.")
-    parser.add_argument("--output", default="checkpoints", help="Checkpoint output directory.")
+    parser = argparse.ArgumentParser(
+        description="Fine-tune OpenCLIP for VideoMind lecture retrieval."
+    )
+    parser.add_argument(
+        "--dataset", default="data/pairs", help="Pair directory or JSON dataset path."
+    )
+    parser.add_argument(
+        "--epochs", type=int, default=10, help="Maximum number of epochs."
+    )
+    parser.add_argument(
+        "--batch-size", type=int, default=32, help="Training batch size."
+    )
+    parser.add_argument(
+        "--output", default="checkpoints", help="Checkpoint output directory."
+    )
     parser.add_argument("--device", default="auto", help="auto, cpu, or cuda.")
-    parser.add_argument("--model-name", default=DEFAULT_CLIP_MODEL, help="OpenCLIP model name.")
-    parser.add_argument("--pretrained", default=DEFAULT_CLIP_PRETRAINED, help="OpenCLIP pretrained tag.")
+    parser.add_argument(
+        "--model-name", default=DEFAULT_CLIP_MODEL, help="OpenCLIP model name."
+    )
+    parser.add_argument(
+        "--pretrained", default=DEFAULT_CLIP_PRETRAINED, help="OpenCLIP pretrained tag."
+    )
     args = parser.parse_args()
 
     best = train(

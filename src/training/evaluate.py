@@ -17,11 +17,12 @@ from tqdm import tqdm
 
 from src.dataset.loader import (
     CLIPLectureDataset,
-    DEFAULT_CLIP_MODEL,
     DEFAULT_CLIP_PRETRAINED,
     collate_clip_batch,
 )
 from src.utils.model_utils import resolve_checkpoint_file, resolve_device
+
+DEFAULT_CLIP_MODEL = "ViT-B-32"
 
 
 def load_open_clip_model(
@@ -32,14 +33,20 @@ def load_open_clip_model(
 ) -> nn.Module:
     """Create an OpenCLIP model and optionally load fine-tuned weights."""
     try:
-        model, _, _ = open_clip.create_model_and_transforms(model_name, pretrained=pretrained)
+        model, _, _ = open_clip.create_model_and_transforms(
+            model_name, pretrained=pretrained
+        )
     except Exception as exc:
-        raise RuntimeError(f"Could not create OpenCLIP model {model_name!r} with pretrained={pretrained!r}") from exc
+        raise RuntimeError(
+            f"Could not create OpenCLIP model {model_name!r} with pretrained={pretrained!r}"
+        ) from exc
 
     if checkpoint is not None:
         checkpoint_file = resolve_checkpoint_file(str(checkpoint))
         state = torch.load(checkpoint_file, map_location="cpu")
-        state_dict = state.get("model_state_dict", state) if isinstance(state, dict) else state
+        state_dict = (
+            state.get("model_state_dict", state) if isinstance(state, dict) else state
+        )
         model.load_state_dict(state_dict)
 
     model.to(device)
@@ -68,7 +75,9 @@ def compute_embeddings(
             text_batches.append(text_embeddings.cpu())
             keys.extend(
                 (video, int(segment_id))
-                for video, segment_id in zip(raw_batch["video"], raw_batch["segment_id"].tolist())
+                for video, segment_id in zip(
+                    raw_batch["video"], raw_batch["segment_id"].tolist()
+                )
             )
 
     if not image_batches:
@@ -83,7 +92,9 @@ def recall_at_k(
     k: int,
 ) -> float:
     """Compute Recall@K where a match is correct if video and segment id match."""
-    if image_embeddings.shape[0] != text_embeddings.shape[0] or image_embeddings.shape[0] != len(segment_keys):
+    if image_embeddings.shape[0] != text_embeddings.shape[0] or image_embeddings.shape[
+        0
+    ] != len(segment_keys):
         raise ValueError("Embedding counts and segment key counts must match")
 
     max_k = min(k, text_embeddings.shape[0])
@@ -109,7 +120,9 @@ def evaluate(
 ) -> dict[str, dict[str, float]]:
     """Evaluate vanilla and fine-tuned OpenCLIP on the test split."""
     torch_device = resolve_device(device)
-    _, _, preprocess_val = open_clip.create_model_and_transforms(model_name, pretrained=pretrained)
+    _, _, preprocess_val = open_clip.create_model_and_transforms(
+        model_name, pretrained=pretrained
+    )
     tokenizer = open_clip.get_tokenizer(model_name)
 
     test_dataset = CLIPLectureDataset(
@@ -130,12 +143,20 @@ def evaluate(
     )
 
     vanilla_model = load_open_clip_model(model_name, pretrained, torch_device)
-    fine_tuned_model = load_open_clip_model(model_name, pretrained, torch_device, checkpoint=checkpoint)
+    fine_tuned_model = load_open_clip_model(
+        model_name, pretrained, torch_device, checkpoint=checkpoint
+    )
 
-    vanilla_images, vanilla_texts, keys = compute_embeddings(vanilla_model, dataloader, torch_device)
-    fine_images, fine_texts, fine_keys = compute_embeddings(fine_tuned_model, dataloader, torch_device)
+    vanilla_images, vanilla_texts, keys = compute_embeddings(
+        vanilla_model, dataloader, torch_device
+    )
+    fine_images, fine_texts, fine_keys = compute_embeddings(
+        fine_tuned_model, dataloader, torch_device
+    )
     if fine_keys != keys:
-        raise RuntimeError("Evaluation keys changed between vanilla and fine-tuned embedding passes")
+        raise RuntimeError(
+            "Evaluation keys changed between vanilla and fine-tuned embedding passes"
+        )
 
     results: dict[str, dict[str, float]] = {}
     for k in (1, 5, 10):
@@ -168,14 +189,36 @@ def main() -> None:
     """Run retrieval evaluation from the command line."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
-    parser = argparse.ArgumentParser(description="Evaluate VideoMind OpenCLIP retrieval.")
-    parser.add_argument("--model", "--checkpoint", dest="checkpoint", required=True, help="Fine-tuned checkpoint path.")
-    parser.add_argument("--dataset", "--test-split", dest="dataset", default="data/pairs", help="Pair directory or test JSON.")
-    parser.add_argument("--batch-size", type=int, default=32, help="Evaluation batch size.")
+    parser = argparse.ArgumentParser(
+        description="Evaluate VideoMind OpenCLIP retrieval."
+    )
+    parser.add_argument(
+        "--model",
+        "--checkpoint",
+        dest="checkpoint",
+        required=True,
+        help="Fine-tuned checkpoint path.",
+    )
+    parser.add_argument(
+        "--dataset",
+        "--test-split",
+        dest="dataset",
+        default="data/pairs",
+        help="Pair directory or test JSON.",
+    )
+    parser.add_argument(
+        "--batch-size", type=int, default=32, help="Evaluation batch size."
+    )
     parser.add_argument("--device", default="auto", help="auto, cpu, or cuda.")
-    parser.add_argument("--output", default="data/eval_results.json", help="Results JSON path.")
-    parser.add_argument("--model-name", default=DEFAULT_CLIP_MODEL, help="OpenCLIP model name.")
-    parser.add_argument("--pretrained", default=DEFAULT_CLIP_PRETRAINED, help="OpenCLIP pretrained tag.")
+    parser.add_argument(
+        "--output", default="data/eval_results.json", help="Results JSON path."
+    )
+    parser.add_argument(
+        "--model-name", default=DEFAULT_CLIP_MODEL, help="OpenCLIP model name."
+    )
+    parser.add_argument(
+        "--pretrained", default=DEFAULT_CLIP_PRETRAINED, help="OpenCLIP pretrained tag."
+    )
     args = parser.parse_args()
 
     results = evaluate(

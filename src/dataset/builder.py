@@ -121,7 +121,6 @@ def build_transcript_chunks(
 
 def build_pairs(
     video_name: str,
-    frames_dir: str | Path,
     transcript_path: str | Path,
     context_window: int = 3,
     min_words: int = 5,
@@ -130,7 +129,6 @@ def build_pairs(
     if context_window < 0:
         raise ValueError("context_window must be zero or greater")
 
-    _ = frames_dir
     transcript = load_transcript(transcript_path)
     segments: list[dict[str, Any]] = transcript["segments"]
     chunks = build_transcript_chunks(
@@ -218,7 +216,6 @@ def save_pairs(
 
 def build_video_pairs(
     video_path: str | Path,
-    frames_root: str | Path = "data/frames",
     transcripts_dir: str | Path = "data/transcripts",
     output_dir: str | Path = "data/pairs",
     context_window: int = 3,
@@ -230,7 +227,6 @@ def build_video_pairs(
     video_name = video.stem
     pairs = build_pairs(
         video_name=video_name,
-        frames_dir=Path(frames_root) / video_name,
         transcript_path=Path(transcripts_dir) / f"{video_name}.json",
         context_window=context_window,
         min_words=min_words,
@@ -240,7 +236,6 @@ def build_video_pairs(
 
 def build_all_videos(
     videos_dir: str | Path = "data/videos",
-    frames_root: str | Path = "data/frames",
     transcripts_dir: str | Path = "data/transcripts",
     output_dir: str | Path = "data/pairs",
     context_window: int = 3,
@@ -264,7 +259,6 @@ def build_all_videos(
     return {
         video.stem: build_video_pairs(
             video_path=video,
-            frames_root=frames_root,
             transcripts_dir=transcripts_dir,
             output_dir=output_dir,
             context_window=context_window,
@@ -340,9 +334,6 @@ def main() -> None:
         "--videos-dir", default="data/videos", help="Directory of videos."
     )
     parser.add_argument(
-        "--frames-root", default="data/frames", help="Root frame directory."
-    )
-    parser.add_argument(
         "--transcripts-dir", default="data/transcripts", help="Transcript directory."
     )
     parser.add_argument("--output", default="data/pairs", help="Output pair directory.")
@@ -363,7 +354,6 @@ def main() -> None:
     if args.video:
         saved = build_video_pairs(
             video_path=args.video,
-            frames_root=args.frames_root,
             transcripts_dir=args.transcripts_dir,
             output_dir=args.output,
             context_window=args.context_window,
@@ -380,7 +370,6 @@ def main() -> None:
 
     saved_by_video = build_all_videos(
         videos_dir=args.videos_dir,
-        frames_root=args.frames_root,
         transcripts_dir=args.transcripts_dir,
         output_dir=args.output,
         context_window=args.context_window,
