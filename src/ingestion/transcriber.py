@@ -106,19 +106,14 @@ def _create_whisper_model(
     device: str,
     compute_type: str,
 ) -> WhisperModel:
-    """Create a Whisper model, preferring the configured local cache path."""
-    local_model_path = os.environ.get(
-        "WHISPER_MODEL_PATH", f"D:/models/faster-whisper-{model_size}"
-    )
-    if os.path.exists(local_model_path):
-        return WhisperModel(local_model_path, device=device, compute_type=compute_type)
+    """Create a Whisper model from a model size name."""
     return WhisperModel(model_size, device=device, compute_type=compute_type)
 
 
 def transcribe_to_memory(
     video_path_or_url: str,
     video_name: str,
-    model_size: str = "base",
+    model_size: str = os.environ.get("WHISPER_MODEL", "medium"),
     device: str = "cpu",
     compute_type: str = "int8",
 ) -> dict[str, Any]:

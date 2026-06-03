@@ -17,8 +17,9 @@ from pydantic import BaseModel, Field, model_validator
 
 from src.ingestion.archive_utils import resolve_direct_url
 from src.ingestion.extractor import extract_frames_to_memory
+from src.ingestion import sector_analyzer
 from src.ingestion.transcriber import transcribe_to_memory
-from src.retrieval.embedder import embed_frames_from_memory
+from src.retrieval.embedder import CLIPEmbedder
 from src.retrieval.pipeline import VideoMindPipeline
 from src.retrieval.store import VideoMindStore
 from src.utils.cleanup import clean_video, clean_all
@@ -30,6 +31,9 @@ app = FastAPI(title="VideoMind", version="0.1.0")
 sessions: dict[str, VideoMindPipeline] = {}
 session_timestamps: dict[str, float] = {}
 SESSION_TTL_SECONDS = 3600.0
+EMBEDDER = CLIPEmbedder()
+STORE = VideoMindStore()
+SECTOR_ANALYZER = sector_analyzer
 
 
 class IngestRequest(BaseModel):
@@ -147,18 +151,20 @@ class CleanupResponse(BaseModel):
 
 def get_store() -> VideoMindStore:
     """Create a Redis vector store instance for the current request."""
-    return VideoMindStore()
+    return STORE
 
 
 def get_pipeline() -> VideoMindPipeline:
     """Create a RAG pipeline instance for the current request."""
-    return VideoMindPipeline(store=get_store())
+    pipeline = VideoMindPipeline(store=get_store())
+    pipeline.embedder = EMBEDDER
+    return pipeline
 
 
 def get_session_pipeline(session_id: str) -> VideoMindPipeline:
     """Return the pipeline for a session, creating it if needed."""
     if session_id not in sessions:
-        sessions[session_id] = VideoMindPipeline()
+        sessions[session_id] = get_pipeline()
     return sessions[session_id]
 
 
@@ -278,7 +284,7 @@ def _ingest_video_source(
     elapsed = time.time() - start
     logger.info("In-memory extraction and transcription finished in %.1fs", elapsed)
 
-    embeddings = embed_frames_from_memory(frames)
+    embeddings = EMBEDDER.embed_frames_from_memory(frames)
     store = get_store()
     if force and _check_already_indexed(video_name, store):
         store.delete_video(video_name)
