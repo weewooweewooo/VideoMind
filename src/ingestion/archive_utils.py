@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 import re
 from urllib.parse import urlparse
 
@@ -23,6 +24,20 @@ def fetch_archive_metadata(identifier: str) -> dict:
     response = requests.get(url, timeout=10)
     response.raise_for_status()
     return response.json()
+
+
+def archive_identifier(video_path_or_url: str) -> str | None:
+    """Extract an archive.org identifier from details or download URLs."""
+    if "archive.org/details/" in video_path_or_url:
+        return video_path_or_url.split("/details/")[1].split("/")[0]
+    if "archive.org/download/" in video_path_or_url:
+        return video_path_or_url.split("/download/")[1].split("/")[0]
+    return None
+
+
+def extract_video_name_from_url(url: str) -> str:
+    """Extracts a clean video name from a URL."""
+    return Path(url.split("?")[0]).stem or "video"
 
 
 def resolve_direct_url(url: str) -> str:

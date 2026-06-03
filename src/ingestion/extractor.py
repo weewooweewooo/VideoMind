@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+import concurrent.futures
 import os
 import tempfile
 import time
 import logging
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 import numpy as np
 import requests
-from decord import VideoReader, cpu
+import torch
+from decord import VideoReader, cpu, gpu
 from PIL import Image
 
 logger = logging.getLogger(__name__)
@@ -46,6 +49,28 @@ def _is_url(source: str) -> bool:
     return parsed.scheme in {"http", "https"}
 
 
+def extract_frames_and_transcript_concurrent(
+    video_path: str,
+    whisper_model_size: str = "medium",
+) -> tuple[list, dict]:
+    """
+    Runs frame extraction and transcription concurrently.
+    Returns (frames, transcription)
+    """
+    from src.ingestion.transcriber import transcribe_to_memory
+
+    video_name = Path(video_path.split("?")[0]).stem or "video"
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        frames_future = executor.submit(extract_frames_to_memory, video_path)
+        transcript_future = executor.submit(
+            transcribe_to_memory,
+            video_path,
+            video_name,
+            model_size=whisper_model_size,
+        )
+        return frames_future.result(), transcript_future.result()
+
+
 def _extract_frames_with_decord(
     video_path_or_url: str,
     scene_threshold: float,
@@ -53,7 +78,7 @@ def _extract_frames_with_decord(
     min_brightness: float,
 ) -> list[dict[str, Any]]:
     """Extract unique video frames from a decord-readable source."""
-    vr = VideoReader(video_path_or_url, ctx=cpu(0))
+    vr = VideoReader(video_path_or_url, ctx=gpu(0) if torch.cuda.is_available() else cpu(0))
     fps = float(vr.get_avg_fps())
     total_frames = len(vr)
     if fps <= 0:
@@ -105,9 +130,9 @@ def _download_url_to_temp_file(url: str) -> str:
 
 def extract_frames_to_memory(
     video_path_or_url: str,
-    scene_threshold: float = 15.0,
+    scene_threshold: float = float(os.environ.get("SCENE_THRESHOLD", "15.0")),
     min_interval: float = 2.0,
-    min_brightness: float = 10.0,
+    min_brightness: float = float(os.environ.get("BRIGHTNESS_THRESHOLD", "10.0")),
 ) -> list[dict[str, Any]]:
     """Extract unique video frames from a local file or URL into memory."""
     start_time = time.time()

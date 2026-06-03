@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-import concurrent.futures
 import json
 import logging
+import os
 import time
 import uuid
 from pathlib import Path
@@ -16,9 +16,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 
 from src.ingestion.archive_utils import resolve_direct_url
-from src.ingestion.extractor import extract_frames_to_memory
+from src.ingestion.extractor import extract_frames_and_transcript_concurrent
 from src.ingestion import sector_analyzer
-from src.ingestion.transcriber import transcribe_to_memory
 from src.retrieval.embedder import CLIPEmbedder
 from src.retrieval.pipeline import VideoMindPipeline
 from src.retrieval.store import VideoMindStore
@@ -30,7 +29,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="VideoMind", version="0.1.0")
 sessions: dict[str, VideoMindPipeline] = {}
 session_timestamps: dict[str, float] = {}
-SESSION_TTL_SECONDS = 3600.0
+SESSION_TTL_SECONDS = float(os.environ.get("SESSION_TTL", "3600"))
 EMBEDDER = CLIPEmbedder()
 STORE = VideoMindStore()
 SECTOR_ANALYZER = sector_analyzer
@@ -261,12 +260,9 @@ def _extract_video_assets(
     resolved_source: str, video_name: str
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Extract frames and transcript concurrently for an ingest source."""
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-        frames_future = executor.submit(extract_frames_to_memory, resolved_source)
-        transcript_future = executor.submit(
-            transcribe_to_memory, resolved_source, video_name
-        )
-        return frames_future.result(), transcript_future.result()
+    frames, transcript = extract_frames_and_transcript_concurrent(resolved_source)
+    transcript["video"] = video_name
+    return frames, transcript
 
 
 def _ingest_video_source(

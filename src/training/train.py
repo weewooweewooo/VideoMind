@@ -23,7 +23,7 @@ from src.dataset.loader import (
     collate_clip_batch,
 )
 from src.training.loss import InfoNCELoss
-from src.utils.model_utils import resolve_device
+from src.utils.model_utils import load_openclip_with_checkpoint, resolve_device
 
 DEFAULT_CLIP_MODEL = "ViT-B-32"
 
@@ -191,18 +191,12 @@ def train(
     output_path = Path(output)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    try:
-        model, _, _ = open_clip.create_model_and_transforms(
-            model_name,
-            pretrained=pretrained,
-        )
-        tokenizer = open_clip.get_tokenizer(model_name)
-    except Exception as exc:
-        raise RuntimeError(
-            f"Could not create OpenCLIP model {model_name!r} with pretrained={pretrained!r}"
-        ) from exc
-
-    model.to(torch_device)
+    model, _, _ = load_openclip_with_checkpoint(
+        model_name,
+        pretrained,
+        device=torch_device,
+    )
+    tokenizer = open_clip.get_tokenizer(model_name)
     criterion = InfoNCELoss().to(torch_device)
 
     train_dataset = CLIPLectureDataset(

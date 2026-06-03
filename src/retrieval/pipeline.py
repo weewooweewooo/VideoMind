@@ -41,7 +41,7 @@ class VideoMindPipeline:
         checkpoint: str | Path | None = None,
         device: str = "auto",
         ollama_model: str = "llama3.2:3b",
-        top_k: int = 5,
+        top_k: int = int(os.environ.get("RETRIEVAL_TOP_K", "5")),
     ) -> None:
         """Initialize retrieval store and local Ollama LLM."""
         self.store = store or VideoMindStore()

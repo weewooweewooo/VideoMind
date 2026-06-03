@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import socket
 from typing import Any
 
@@ -77,7 +78,7 @@ Rules:
             logger.warning("LLM categorization failed; skipping sector selection")
             return None
 
-        llm = OllamaLLM(model="llama3.2:3b", temperature=0)
+        llm = OllamaLLM(model=os.environ.get("OLLAMA_MODEL", "llama3.1:8b"), temperature=0)
 
         logger.info("Analyzing content with local AI (LLaMA 3.2)")
         response = llm.invoke(prompt)

@@ -13,7 +13,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from src.dataset.loader import DEFAULT_CLIP_MODEL, DEFAULT_CLIP_PRETRAINED
-from src.utils.model_utils import resolve_checkpoint_file, resolve_device
+from src.utils.model_utils import load_openclip_with_checkpoint, resolve_device
 
 
 class CLIPEmbedder:
@@ -31,29 +31,23 @@ class CLIPEmbedder:
         self.pretrained = pretrained
         self.device = resolve_device(device)
 
-        try:
-            model, _, preprocess_val = open_clip.create_model_and_transforms(
-                model_name,
-                pretrained=pretrained,
-            )
-            tokenizer = open_clip.get_tokenizer(model_name)
-        except Exception as exc:
-            raise RuntimeError(f"Could not create OpenCLIP model {model_name!r} with pretrained={pretrained!r}") from exc
+        checkpoint_path = (
+            str(checkpoint)
+            if checkpoint is not None and Path(checkpoint).exists()
+            else None
+        )
+        model, _, preprocess_val = load_openclip_with_checkpoint(
+            model_name,
+            pretrained,
+            checkpoint_path=checkpoint_path,
+            device=self.device,
+        )
+        tokenizer = open_clip.get_tokenizer(model_name)
 
-        if checkpoint is not None and Path(checkpoint).exists():
-            self._load_checkpoint(model, checkpoint)
-
-        self.model: nn.Module = model.to(self.device)
+        self.model: nn.Module = model
         self.model.eval()
         self.preprocess = preprocess_val
         self.tokenizer = tokenizer
-
-    def _load_checkpoint(self, model: nn.Module, checkpoint: str | Path) -> None:
-        """Load fine-tuned OpenCLIP weights into the model."""
-        checkpoint_file = resolve_checkpoint_file(str(checkpoint))
-        state = torch.load(checkpoint_file, map_location="cpu")
-        state_dict = state.get("model_state_dict", state) if isinstance(state, dict) else state
-        model.load_state_dict(state_dict)
 
     def _open_image(self, image_path: str | Path) -> Image.Image:
         """Open an image as RGB with a clear error on failure."""
@@ -121,8 +115,3 @@ class CLIPEmbedder:
                 )
 
         return embedded_frames
-
-
-def embed_frames_from_memory(frames: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Embed in-memory frame dictionaries with a default OpenCLIP embedder."""
-    return CLIPEmbedder().embed_frames_from_memory(frames)

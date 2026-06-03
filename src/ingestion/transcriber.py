@@ -10,7 +10,8 @@ from typing import Any
 import requests
 from faster_whisper import WhisperModel
 
-from src.ingestion.archive_utils import fetch_archive_metadata
+from src.ingestion.archive_utils import archive_identifier, fetch_archive_metadata
+from src.utils.model_utils import resolve_device
 
 logger = logging.getLogger(__name__)
 
@@ -92,15 +93,6 @@ def get_archive_transcript(identifier: str) -> dict | None:
         return None
 
 
-def _archive_identifier(video_path_or_url: str) -> str | None:
-    """Extract an archive.org identifier from details or download URLs."""
-    if "archive.org/details/" in video_path_or_url:
-        return video_path_or_url.split("/details/")[1].split("/")[0]
-    if "archive.org/download/" in video_path_or_url:
-        return video_path_or_url.split("/download/")[1].split("/")[0]
-    return None
-
-
 def _create_whisper_model(
     model_size: str,
     device: str,
@@ -114,22 +106,22 @@ def transcribe_to_memory(
     video_path_or_url: str,
     video_name: str,
     model_size: str = os.environ.get("WHISPER_MODEL", "medium"),
-    device: str = "cpu",
+    device: str = os.environ.get("DEVICE", "auto"),
     compute_type: str = "int8",
 ) -> dict[str, Any]:
     """Transcribe audio from a path or URL into a Whisper-compatible dict."""
-    archive_identifier = _archive_identifier(video_path_or_url)
-    if archive_identifier:
-        existing = get_archive_transcript(archive_identifier)
+    identifier = archive_identifier(video_path_or_url)
+    if identifier:
+        existing = get_archive_transcript(identifier)
         if existing:
             existing["video"] = video_name
             return existing
 
     start_time = time.time()
-    model = _create_whisper_model(model_size, device, compute_type)
+    model = _create_whisper_model(model_size, resolve_device(device), compute_type)
     segments_gen, info = model.transcribe(
         video_path_or_url,
-        beam_size=5,
+        beam_size=int(os.environ.get("WHISPER_BEAM_SIZE", "5")),
         word_timestamps=True,
         language="en",
     )

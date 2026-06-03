@@ -232,7 +232,7 @@ def main() -> None:
         if not isinstance(pairs, list):
             raise ValueError(f"Pairs JSON must contain a list: {file}")
         total += store.index_video(pairs)
-    print(f"Indexed {total} pairs")
+    logging.info("Indexed %d pairs", total)
 
 
 if __name__ == "__main__":

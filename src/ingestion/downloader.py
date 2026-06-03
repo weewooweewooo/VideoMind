@@ -7,7 +7,7 @@ import logging
 import sys
 from pathlib import Path
 
-from src.ingestion.archive_utils import resolve_direct_url
+from src.ingestion.archive_utils import extract_video_name_from_url, resolve_direct_url
 from src.ingestion.stream_processor import discover_and_download, process_video_from_url
 
 logger = logging.getLogger(__name__)
@@ -54,7 +54,7 @@ Only frames, transcripts, and training pairs are saved.
         elif args.url:
             print("Processing video via streaming")
             url = args.url
-            video_name = Path(args.url.split("?")[0]).stem or "video"
+            video_name = extract_video_name_from_url(args.url)
             resolved_url = resolve_direct_url(url)
             if resolved_url != url:
                 url = resolved_url

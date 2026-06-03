@@ -20,38 +20,9 @@ from src.dataset.loader import (
     DEFAULT_CLIP_PRETRAINED,
     collate_clip_batch,
 )
-from src.utils.model_utils import resolve_checkpoint_file, resolve_device
+from src.utils.model_utils import load_openclip_with_checkpoint, resolve_device
 
 DEFAULT_CLIP_MODEL = "ViT-B-32"
-
-
-def load_open_clip_model(
-    model_name: str,
-    pretrained: str,
-    device: torch.device,
-    checkpoint: str | Path | None = None,
-) -> nn.Module:
-    """Create an OpenCLIP model and optionally load fine-tuned weights."""
-    try:
-        model, _, _ = open_clip.create_model_and_transforms(
-            model_name, pretrained=pretrained
-        )
-    except Exception as exc:
-        raise RuntimeError(
-            f"Could not create OpenCLIP model {model_name!r} with pretrained={pretrained!r}"
-        ) from exc
-
-    if checkpoint is not None:
-        checkpoint_file = resolve_checkpoint_file(str(checkpoint))
-        state = torch.load(checkpoint_file, map_location="cpu")
-        state_dict = (
-            state.get("model_state_dict", state) if isinstance(state, dict) else state
-        )
-        model.load_state_dict(state_dict)
-
-    model.to(device)
-    model.eval()
-    return model
 
 
 def compute_embeddings(
@@ -67,10 +38,10 @@ def compute_embeddings(
     with torch.no_grad():
         for raw_batch in tqdm(dataloader, desc="embedding", leave=False):
             images = raw_batch["image"].to(device)
-            text_tokens = raw_batch["text_tokens"].to(device)
+            text_input_ids = raw_batch["text_input_ids"].to(device)
 
             image_embeddings = F.normalize(model.encode_image(images), dim=-1)
-            text_embeddings = F.normalize(model.encode_text(text_tokens), dim=-1)
+            text_embeddings = F.normalize(model.encode_text(text_input_ids), dim=-1)
             image_batches.append(image_embeddings.cpu())
             text_batches.append(text_embeddings.cpu())
             keys.extend(
@@ -120,19 +91,14 @@ def evaluate(
 ) -> dict[str, dict[str, float]]:
     """Evaluate vanilla and fine-tuned OpenCLIP on the test split."""
     torch_device = resolve_device(device)
-    _, _, preprocess_val = open_clip.create_model_and_transforms(
-        model_name, pretrained=pretrained
-    )
     tokenizer = open_clip.get_tokenizer(model_name)
 
     test_dataset = CLIPLectureDataset(
         dataset,
         split="test",
-        preprocess=preprocess_val,
         tokenizer=tokenizer,
         model_name=model_name,
         pretrained=pretrained,
-        is_train=False,
     )
     dataloader = DataLoader(
         test_dataset,
@@ -142,10 +108,14 @@ def evaluate(
         collate_fn=collate_clip_batch,
     )
 
-    vanilla_model = load_open_clip_model(model_name, pretrained, torch_device)
-    fine_tuned_model = load_open_clip_model(
-        model_name, pretrained, torch_device, checkpoint=checkpoint
+    vanilla_model, _, _ = load_openclip_with_checkpoint(
+        model_name, pretrained, device=torch_device
     )
+    fine_tuned_model, _, _ = load_openclip_with_checkpoint(
+        model_name, pretrained, checkpoint_path=str(checkpoint), device=torch_device
+    )
+    vanilla_model.eval()
+    fine_tuned_model.eval()
 
     vanilla_images, vanilla_texts, keys = compute_embeddings(
         vanilla_model, dataloader, torch_device

@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-import concurrent.futures
 import logging
 from pathlib import Path
 import time
 from typing import Any
 
 from src.ingestion.archive_search import sanitize_title, search_archive_org
-from src.ingestion.archive_utils import resolve_direct_url
+from src.ingestion.archive_utils import extract_video_name_from_url, resolve_direct_url
+from src.ingestion.extractor import extract_frames_and_transcript_concurrent
 from src.ingestion.sector_analyzer import (
     analyze_sectors_with_llm,
     convert_llm_sectors_to_dict,
@@ -119,15 +119,9 @@ def _extract_transcript_and_frames(
     url: str, video_name: str
 ) -> tuple[list[dict[str, Any]], dict[str, Any], float]:
     """Extract frames and transcript concurrently."""
-    from src.ingestion.extractor import extract_frames_to_memory
-    from src.ingestion.transcriber import transcribe_to_memory
-
     start = time.time()
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-        frames_future = executor.submit(extract_frames_to_memory, url)
-        transcript_future = executor.submit(transcribe_to_memory, url, video_name)
-        frames = frames_future.result()
-        transcript = transcript_future.result()
+    frames, transcript = extract_frames_and_transcript_concurrent(url)
+    transcript["video"] = video_name
     return frames, transcript, time.time() - start
 
 
@@ -137,10 +131,10 @@ def _index_processed_video(
     video_name: str,
 ) -> int:
     """Embed extracted frames and index them in Redis."""
-    from src.retrieval.embedder import embed_frames_from_memory
+    from src.retrieval.embedder import CLIPEmbedder
     from src.retrieval.store import VideoMindStore
 
-    embeddings = embed_frames_from_memory(frames)
+    embeddings = CLIPEmbedder().embed_frames_from_memory(frames)
     return VideoMindStore().index_frames_from_memory(embeddings, transcript, video_name)
 
 
@@ -165,7 +159,7 @@ def process_video_from_url(url: str, video_name: str | None = None) -> bool:
     """
     try:
         if video_name is None:
-            video_name = Path(url.split("?")[0]).stem or "video"
+            video_name = extract_video_name_from_url(url)
 
         url = _resolve_video_source(url)
         print(f"\nProcessing video: {video_name}")
