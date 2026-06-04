@@ -10,6 +10,7 @@ faster-whisper>=1.0
 decord>=0.6
 Pillow>=10.0
 numpy>=1.26
+opencv-contrib-python-headless>=4.8
 scikit-learn>=1.0
 matplotlib>=3.0
 

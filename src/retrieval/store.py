@@ -28,6 +28,7 @@ schema = {
     "fields": [
         {"name": "id", "type": "tag"},
         {"name": "video", "type": "tag"},
+        {"name": "source", "type": "text"},
         {"name": "text", "type": "text"},
         {"name": "start", "type": "numeric"},
         {"name": "end", "type": "numeric"},
@@ -60,6 +61,7 @@ class VideoMindStore:
             {
                 "id": pair.get("id", str(uuid.uuid4())),
                 "video": pair["video"],
+                "source": pair.get("source", "frame"),
                 "text": pair["text"],
                 "start": float(pair.get("start", 0)),
                 "end": float(pair.get("end", 0)),
@@ -124,6 +126,7 @@ class VideoMindStore:
             doc = {
                 "id": str(uuid.uuid4()),
                 "video": video_name,
+                "source": "frame",
                 "text": context,
                 "start": float(segment["start"]),
                 "end": float(segment["end"]),
@@ -133,6 +136,35 @@ class VideoMindStore:
 
         if docs:
             self.index.load(docs, id_field="id")
+            logger.info("Indexed %d frame embedding records for %s", len(docs), video_name)
+        return len(docs)
+
+    def index_transcript_segments(
+        self,
+        video_name: str,
+        segments: list[dict[str, Any]],
+    ) -> int:
+        """Index embedded transcript segments to Redis."""
+        docs = [
+            {
+                "id": f"{video_name}:text:{i}",
+                "video": video_name,
+                "text": segment["text"],
+                "start": float(segment["start"]),
+                "end": float(segment["end"]),
+                "embedding": np.array(segment["embedding"], dtype=np.float32).tobytes(),
+                "source": "transcript",
+            }
+            for i, segment in enumerate(segments)
+        ]
+
+        if docs:
+            self.index.load(docs, id_field="id")
+            logger.info(
+                "Indexed %d transcript embedding records for %s",
+                len(docs),
+                video_name,
+            )
         return len(docs)
 
     def query(

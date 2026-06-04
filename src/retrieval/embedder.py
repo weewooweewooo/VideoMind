@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -73,6 +74,77 @@ class CLIPEmbedder:
         """Embed one retrieval query as a normalized float32 numpy vector."""
         return self.embed_text(text)
 
+    def embed_transcript_segments(
+        self,
+        segments: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Embed transcript segments and preserve text/timestamp metadata."""
+        chunked_segments = self.chunk_transcript_segments(segments)
+        embedded_segments: list[dict[str, Any]] = []
+        for segment in chunked_segments:
+            text = str(segment["text"]).strip()
+            if not text:
+                continue
+            embedded_segments.append(
+                {
+                    "embedding": self.embed_text(text),
+                    "text": text,
+                    "start": float(segment["start"]),
+                    "end": float(segment["end"]),
+                }
+            )
+        return embedded_segments
+
+    def chunk_transcript_segments(
+        self,
+        segments: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Merge short transcript segments into larger overlapping chunks."""
+        target_words = int(os.environ.get("CHUNK_SIZE", "250"))
+        overlap_segments = int(os.environ.get("CHUNK_OVERLAP", "2"))
+        max_words = 400
+
+        chunks: list[dict[str, Any]] = []
+        valid_segments = [
+            segment
+            for segment in segments
+            if str(segment.get("text", "")).strip()
+        ]
+        index = 0
+
+        while index < len(valid_segments):
+            chunk_segments: list[dict[str, Any]] = []
+            word_count = 0
+            cursor = index
+
+            while cursor < len(valid_segments):
+                segment = valid_segments[cursor]
+                segment_words = str(segment["text"]).split()
+                next_count = word_count + len(segment_words)
+                if chunk_segments and next_count > max_words:
+                    break
+                chunk_segments.append(segment)
+                word_count = next_count
+                cursor += 1
+                if word_count >= target_words:
+                    break
+
+            chunks.append(
+                {
+                    "start": float(chunk_segments[0]["start"]),
+                    "end": float(chunk_segments[-1]["end"]),
+                    "text": " ".join(
+                        str(segment["text"]).strip() for segment in chunk_segments
+                    ),
+                }
+            )
+
+            if cursor >= len(valid_segments):
+                break
+            index = max(index + 1, cursor - max(0, overlap_segments))
+
+        return chunks
+
     def embed_batch_images(self, paths: list[str | Path], batch_size: int = 32) -> np.ndarray:
         """Embed image paths as normalized numpy vectors."""
         if not paths:
@@ -94,7 +166,7 @@ class CLIPEmbedder:
         frames: list[dict[str, Any]],
         batch_size: int = 32,
     ) -> list[dict[str, Any]]:
-        """Embed in-memory PIL frames and preserve their timestamps."""
+        """Embed in-memory frames and preserve their timestamps."""
         if not frames:
             return []
 
@@ -102,7 +174,7 @@ class CLIPEmbedder:
         for start in range(0, len(frames), batch_size):
             batch = frames[start : start + batch_size]
             image_tensor = torch.stack(
-                [self.preprocess(frame["image"].convert("RGB")) for frame in batch]
+                [self.preprocess(self._memory_frame_to_image(frame)) for frame in batch]
             ).to(self.device)
             with torch.no_grad():
                 embeddings = F.normalize(self.model.encode_image(image_tensor), dim=-1)
@@ -115,3 +187,8 @@ class CLIPEmbedder:
                 )
 
         return embedded_frames
+
+    def _memory_frame_to_image(self, frame: dict[str, Any]) -> Image.Image:
+        if "frame" in frame:
+            return Image.fromarray(frame["frame"]).convert("RGB")
+        return frame["image"].convert("RGB")

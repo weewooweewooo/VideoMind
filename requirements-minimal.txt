@@ -21,3 +21,4 @@ yt-dlp>=2023.12.0
 # In-memory ingestion
 decord
 faster-whisper
+opencv-contrib-python-headless>=4.8

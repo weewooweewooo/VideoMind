@@ -99,7 +99,7 @@ def _create_whisper_model(
     compute_type: str,
 ) -> WhisperModel:
     """Create a Whisper model from a model size name."""
-    return WhisperModel(model_size, device=device, compute_type=compute_type)
+    return WhisperModel(model_size, device=device, compute_type="int8")
 
 
 def transcribe_to_memory(

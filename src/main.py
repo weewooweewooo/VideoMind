@@ -355,10 +355,12 @@ def _ingest_video_source(
     logger.info("In-memory extraction and transcription finished in %.1fs", elapsed)
 
     embeddings = EMBEDDER.embed_frames_from_memory(frames)
+    text_segments = EMBEDDER.embed_transcript_segments(transcript["segments"])
     store = get_store()
     if force and _check_already_indexed(video_name, store):
         store.delete_video(video_name)
     indexed = store.index_frames_from_memory(embeddings, transcript, video_name)
+    store.index_transcript_segments(video_name, text_segments)
 
     return {
         "video": video_name,
