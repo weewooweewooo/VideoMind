@@ -99,16 +99,20 @@ Answer:"""
         )
         return prompt.format_prompt().to_string()
 
-    def _get_cache_key(self, question: str) -> str:
+    def _get_cache_key(self, question: str, video_name: str | None = None) -> str:
         """Build a stable Redis cache key for a normalized question."""
         normalized = question.lower().strip()
         normalized = normalized.translate(str.maketrans("", "", string.punctuation))
-        return f"videomind:cache:{hashlib.md5(normalized.encode()).hexdigest()}"
+        video_scope = (video_name or "all").lower().strip()
+        cache_input = f"{video_scope}:{normalized}"
+        return f"videomind:cache:{hashlib.md5(cache_input.encode()).hexdigest()}"
 
-    def _get_cached(self, question: str) -> dict[str, Any] | None:
+    def _get_cached(
+        self, question: str, video_name: str | None = None
+    ) -> dict[str, Any] | None:
         """Return a cached query response if Redis has one."""
         try:
-            key = self._get_cache_key(question)
+            key = self._get_cache_key(question, video_name)
             cached = self.cache.get(key)
             if cached:
                 logger.debug("Query cache hit")
@@ -117,10 +121,15 @@ Answer:"""
         except Exception:
             return None
 
-    def _set_cache(self, question: str, response: dict[str, Any]) -> None:
+    def _set_cache(
+        self,
+        question: str,
+        response: dict[str, Any],
+        video_name: str | None = None,
+    ) -> None:
         """Store a query response in Redis without interrupting normal queries."""
         try:
-            key = self._get_cache_key(question)
+            key = self._get_cache_key(question, video_name)
             self.cache.setex(key, self.cache_ttl, json.dumps(response))
         except Exception:
             pass
@@ -157,11 +166,17 @@ Answer:"""
             for source in sources
         ]
 
-    def _retrieve_context(self, question: str) -> list[dict[str, Any]]:
+    def _retrieve_context(
+        self, question: str, video_name: str | None = None
+    ) -> list[dict[str, Any]]:
         """Retrieve source context for a question using recent conversation history."""
         retrieval_query = self._build_retrieval_query(question)
         text_embedding = self.embedder.query_embedding(retrieval_query)
-        return self.store.query(text_embedding, top_k=self.top_k)
+        return self.store.query(
+            text_embedding,
+            top_k=self.top_k,
+            video_name=video_name,
+        )
 
     def _record_answer(self, question: str, answer: str) -> None:
         """Append a completed user/assistant turn to conversation history."""
@@ -175,20 +190,22 @@ Answer:"""
             "sources": [],
         }
 
-    def query(self, question: str) -> dict[str, Any]:
+    def query(
+        self, question: str, video_name: str | None = None
+    ) -> dict[str, Any]:
         """Answer a question using retrieved lecture context from all indexed videos."""
         if not question.strip():
             raise ValueError("question must not be empty")
 
-        cached = self._get_cached(question)
+        cached = self._get_cached(question, video_name)
         if cached:
             return cached
 
-        sources = self._retrieve_context(question)
+        sources = self._retrieve_context(question, video_name)
         if not sources:
             response = self._insufficient_context_response()
             self._record_answer(question, response["answer"])
-            self._set_cache(question, response)
+            self._set_cache(question, response, video_name)
             return response
 
         prompt = self._build_prompt(question, sources)
@@ -199,18 +216,21 @@ Answer:"""
             "answer": answer_text,
             "sources": self._format_sources_response(sources),
         }
-        self._set_cache(question, response)
+        self._set_cache(question, response, video_name)
         return response
 
     def query_stream(
-        self, question: str, session_id: str | None = None
+        self,
+        question: str,
+        session_id: str | None = None,
+        video_name: str | None = None,
     ) -> Iterator[dict[str, Any]]:
         """Stream an answer token by token, then yield retrieved sources."""
         _ = session_id
         if not question.strip():
             raise ValueError("question must not be empty")
 
-        cached = self._get_cached(question)
+        cached = self._get_cached(question, video_name)
         if cached:
             answer = str(cached.get("answer", ""))
             if answer:
@@ -218,11 +238,11 @@ Answer:"""
             yield {"sources": cached.get("sources", [])}
             return
 
-        sources = self._retrieve_context(question)
+        sources = self._retrieve_context(question, video_name)
         if not sources:
             response = self._insufficient_context_response()
             self._record_answer(question, response["answer"])
-            self._set_cache(question, response)
+            self._set_cache(question, response, video_name)
             yield {"token": response["answer"]}
             yield {"sources": []}
             return
@@ -242,5 +262,5 @@ Answer:"""
             "answer": answer_text,
             "sources": self._format_sources_response(sources),
         }
-        self._set_cache(question, response)
+        self._set_cache(question, response, video_name)
         yield {"sources": response["sources"]}

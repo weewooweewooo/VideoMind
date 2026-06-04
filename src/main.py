@@ -11,8 +11,10 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+import redis
+import requests
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 
 from src.ingestion.archive_utils import resolve_direct_url
@@ -20,7 +22,7 @@ from src.ingestion.extractor import extract_frames_and_transcript_concurrent
 from src.ingestion import sector_analyzer
 from src.retrieval.embedder import CLIPEmbedder
 from src.retrieval.pipeline import VideoMindPipeline
-from src.retrieval.store import VideoMindStore
+from src.retrieval.store import REDIS_URL, VideoMindStore
 from src.utils.cleanup import clean_video, clean_all
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -33,6 +35,28 @@ SESSION_TTL_SECONDS = float(os.environ.get("SESSION_TTL", "3600"))
 EMBEDDER = CLIPEmbedder()
 STORE = VideoMindStore()
 SECTOR_ANALYZER = sector_analyzer
+
+
+@app.on_event("startup")
+def warn_if_ollama_model_missing() -> None:
+    """Warn when the configured Ollama model has not been pulled locally."""
+    model = os.environ.get("OLLAMA_MODEL", "llama3.1:8b")
+    ollama_host = os.environ.get("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+    try:
+        response = requests.get(f"{ollama_host}/api/tags", timeout=5)
+        response.raise_for_status()
+        models = response.json().get("models", [])
+    except Exception as exc:
+        logger.warning("Could not check Ollama model %s: %s", model, exc)
+        return
+
+    available_models = {
+        item.get("name") or item.get("model")
+        for item in models
+        if isinstance(item, dict)
+    }
+    if model not in available_models:
+        logger.warning("Ollama model %s not found. Run: ollama pull %s", model, model)
 
 
 class IngestRequest(BaseModel):
@@ -77,6 +101,7 @@ class QueryRequest(BaseModel):
 
     question: str
     session_id: str | None = None
+    video_name: str | None = None
 
 
 class SourceResponse(BaseModel):
@@ -203,6 +228,55 @@ def cleanup_response(result: dict[str, Any]) -> CleanupResponse:
     )
 
 
+def health_check_status(func) -> str:
+    """Return ok or an error string for one dependency check."""
+    try:
+        func()
+        return "ok"
+    except Exception as exc:
+        return f"error: {exc}"
+
+
+def check_redis_stack() -> None:
+    """Verify Redis Stack is reachable and RediSearch commands are available."""
+    client = redis.from_url(REDIS_URL)
+    client.execute_command("FT._LIST")
+
+
+def check_ollama() -> None:
+    """Verify the configured Ollama server responds to its HTTP API."""
+    ollama_host = os.environ.get("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+    response = requests.get(f"{ollama_host}/api/tags", timeout=5)
+    response.raise_for_status()
+
+
+def check_openclip_model() -> None:
+    """Verify the global OpenCLIP embedder has an initialized model."""
+    if getattr(EMBEDDER, "model", None) is None:
+        raise RuntimeError("OpenCLIP model is not initialized")
+    if getattr(EMBEDDER, "tokenizer", None) is None:
+        raise RuntimeError("OpenCLIP tokenizer is not initialized")
+    next(EMBEDDER.model.parameters())
+
+
+@app.get("/health")
+async def health_check() -> JSONResponse:
+    """Return dependency health for Redis Stack, Ollama, and OpenCLIP."""
+    checks = {
+        "redis": health_check_status(check_redis_stack),
+        "ollama": health_check_status(check_ollama),
+        "model": health_check_status(check_openclip_model),
+    }
+    healthy = all(value == "ok" for value in checks.values())
+    return JSONResponse(
+        status_code=200 if healthy else 503,
+        content={
+            "status": "healthy" if healthy else "degraded",
+            **checks,
+        },
+    )
+
+
 def _check_already_indexed(
     video_name: str, store: VideoMindStore | None = None
 ) -> bool:
@@ -326,7 +400,7 @@ async def query_video(request: QueryRequest) -> QueryResponse:
         pipeline = get_session_pipeline(session_id)
         session_timestamps[session_id] = current_time
         result = await asyncio.to_thread(
-            lambda: pipeline.query(request.question)
+            lambda: pipeline.query(request.question, video_name=request.video_name)
         )
         return QueryResponse(
             **result,
@@ -353,7 +427,11 @@ async def query_video_stream(request: QueryRequest) -> StreamingResponse:
 
     def event_stream():
         try:
-            for event in pipeline.query_stream(request.question, session_id=session_id):
+            for event in pipeline.query_stream(
+                request.question,
+                session_id=session_id,
+                video_name=request.video_name,
+            ):
                 yield f"data: {json.dumps(event)}\n\n"
             yield f"data: {json.dumps({'done': True})}\n\n"
         except Exception as exc:
