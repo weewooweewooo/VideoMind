@@ -27,11 +27,7 @@ def parse_srt_time(time_str: str) -> float:
     """
     time_part = time_str.strip().replace(",", ".")
     hours_text, minutes_text, seconds_text = time_part.split(":")
-    return (
-        int(hours_text) * 3600
-        + int(minutes_text) * 60
-        + float(seconds_text)
-    )
+    return int(hours_text) * 3600 + int(minutes_text) * 60 + float(seconds_text)
 
 
 def get_archive_transcript(identifier: str) -> dict | None:
@@ -89,7 +85,9 @@ def get_archive_transcript(identifier: str) -> dict | None:
         }
 
     except (requests.RequestException, KeyError, IndexError, ValueError) as exc:
-        logger.warning("Could not fetch archive.org transcript for %s: %s", identifier, exc)
+        logger.warning(
+            "Could not fetch archive.org transcript for %s: %s", identifier, exc
+        )
         return None
 
 
@@ -99,8 +97,14 @@ def _create_whisper_model(
     compute_type: str,
 ) -> WhisperModel:
     """Create a Whisper model from a model size name."""
-    return WhisperModel(model_size, device=device, compute_type="int8")
-
+    compute_type = "float16" if device == "cuda" else "int8"
+    return WhisperModel(
+        model_size,
+        device=device,
+        compute_type=compute_type,
+        num_workers=4,
+        cpu_threads=8,
+    )
 
 def transcribe_to_memory(
     video_path_or_url: str,

@@ -187,13 +187,16 @@ class VideoMindStore:
         query = VectorQuery(
             vector=query_vector.tobytes(),
             vector_field_name="embedding",
-            return_fields=["id", "video", "text", "start", "end"],
+            return_fields=["id", "video", "source", "text", "start", "end"],
             num_results=top_k,
         )
         query.dialect(2)
 
+        filters = ["@source:transcript"]
         if video_name:
-            query.set_filter(f"@video:{{{video_name}}}")
+            filters.append(f"@video:{{{video_name}}}")
+        filter_expression = filters[0] if len(filters) == 1 else f"({' '.join(filters)})"
+        query.set_filter(filter_expression)
 
         results = self.index.query(query)
         logger.debug("Redis vector query raw results=%d", len(results))
@@ -207,6 +210,7 @@ class VideoMindStore:
         vector_distance = result.get("vector_distance", 1)
         return {
             "video": result["video"],
+            "source": result["source"],
             "text": result["text"],
             "start": float(result["start"]),
             "end": float(result["end"]),

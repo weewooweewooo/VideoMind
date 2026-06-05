@@ -38,6 +38,9 @@ class VideoMindPipeline:
         device: str = "auto",
         ollama_model: str = "llama3.2:3b",
         top_k: int = int(os.environ.get("RETRIEVAL_TOP_K", "5")),
+        min_retrieval_score: float = float(
+            os.environ.get("MIN_RETRIEVAL_SCORE", "0.4")
+        ),
     ) -> None:
         """Initialize retrieval store and local Ollama LLM."""
         self.store = store or VideoMindStore()
@@ -45,6 +48,7 @@ class VideoMindPipeline:
         self.llm = OllamaLLM(model=ollama_model)
         self.streaming_llm = OllamaLLM(model=ollama_model, streaming=True)
         self.top_k = top_k
+        self.min_retrieval_score = min_retrieval_score
         self.conversation_history: list[dict[str, str]] = []
         self.cache = redis.from_url(
             os.environ.get("REDIS_URL", "redis://localhost:6379")
@@ -168,11 +172,14 @@ Answer:"""
         """Retrieve source context for a question using recent conversation history."""
         retrieval_query = self._build_retrieval_query(question)
         text_embedding = self.embedder.query_embedding(retrieval_query)
-        return self.store.query(
+        sources = self.store.query(
             text_embedding,
             top_k=self.top_k,
             video_name=video_name,
         )
+        return [
+            source for source in sources if source["score"] >= self.min_retrieval_score
+        ]
 
     def _record_answer(self, question: str, answer: str) -> None:
         """Append a completed user/assistant turn to conversation history."""

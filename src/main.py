@@ -19,7 +19,6 @@ from pydantic import BaseModel, Field, model_validator
 
 from src.ingestion.archive_utils import resolve_direct_url
 from src.ingestion.extractor import extract_frames_and_transcript_concurrent
-from src.ingestion import sector_analyzer
 from src.retrieval.embedder import CLIPEmbedder
 from src.retrieval.pipeline import VideoMindPipeline
 from src.retrieval.store import REDIS_URL, VideoMindStore
@@ -34,7 +33,6 @@ session_timestamps: dict[str, float] = {}
 SESSION_TTL_SECONDS = float(os.environ.get("SESSION_TTL", "3600"))
 EMBEDDER = CLIPEmbedder()
 STORE = VideoMindStore()
-SECTOR_ANALYZER = sector_analyzer
 
 
 @app.on_event("startup")
@@ -102,16 +100,6 @@ class QueryRequest(BaseModel):
     question: str
     session_id: str | None = None
     video_name: str | None = None
-
-
-class SourceResponse(BaseModel):
-    """Retrieved source returned with an answer."""
-
-    video: str
-    start: float
-    end: float
-    text: str
-    score: float
 
 
 class QueryResponse(BaseModel):
