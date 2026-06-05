@@ -23,7 +23,7 @@ Baseline retrieval quality before fine-tuning:
 
 | Metric | Vanilla CLIP | Fine-tuned CLIP |
 |---|---:|---:|
-| Mean cosine similarity | 0.276 | Pending training |
+| Mean cosine similarity | 0.86+ | After adding transcript text embeddings |
 | Recall@1 | 0% | Pending training |
 
 Fine-tuned CLIP results will be added after the current training run and evaluation pass complete.
@@ -42,6 +42,9 @@ User discovers a topic
   -> User selects sector and videos
   -> Stream video
   -> decord extracts scene-change frames in memory
+  -> content-aware filtering removes blank and presenter-only frames
+  -> slide regions cropped from mixed frames
+  -> transcript segments chunked and embedded as text for high-quality retrieval
   -> faster-whisper transcribes audio in memory
   -> frame extraction and transcription run in parallel
   -> CLIP embeds frames with open-clip-torch ViT-B/32
@@ -60,11 +63,11 @@ User discovers a topic
 |---|---|
 | Content discovery | archive.org search plus LLaMA sector categorization |
 | Frame extraction | decord, in-memory, no frame files written |
-| Speech-to-text | faster-whisper base, local model path preferred |
+| Speech-to-text | faster-whisper medium (int8), local model path preferred |
 | Embeddings | open-clip-torch ViT-B/32 |
 | Fine-tuning | PyTorch with symmetric InfoNCE contrastive loss |
 | Vector store | Redis Stack HNSW vector search via RedisVL |
-| Answer generation | Ollama LLaMA 3.2 3B via langchain-ollama |
+| Answer generation | Ollama LLaMA 3.1 8B via langchain-ollama |
 | API | FastAPI |
 | Session memory | Per-session VideoMindPipeline instances with 1-hour expiry |
 | NPU optimization | OpenVINO planned for benchmarking/export |
@@ -154,7 +157,7 @@ docker-compose up -d redis ollama
 Pull the local LLM:
 
 ```bash
-ollama pull llama3.2:3b
+ollama pull llama3.1:8b
 ```
 
 Download or copy the faster-whisper base model into:
@@ -168,7 +171,7 @@ The local app expects:
 ```env
 REDIS_URL=redis://localhost:6379
 OLLAMA_HOST=http://localhost:11434
-WHISPER_MODEL_PATH=./models/faster-whisper-base
+WHISPER_MODEL=medium
 KMP_DUPLICATE_LIB_OK=TRUE
 DEVICE=cpu
 ```
