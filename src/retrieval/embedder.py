@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -102,7 +103,11 @@ class CLIPEmbedder:
         """Merge short transcript segments into larger overlapping chunks."""
         target_words = int(os.environ.get("CHUNK_SIZE", "250"))
         overlap_segments = int(os.environ.get("CHUNK_OVERLAP", "2"))
-        max_words = 400
+        logging.info(
+            "Chunking %d segments into chunks with target=%d words",
+            len(segments),
+            target_words,
+        )
 
         chunks: list[dict[str, Any]] = []
         valid_segments = [
@@ -121,13 +126,11 @@ class CLIPEmbedder:
                 segment = valid_segments[cursor]
                 segment_words = str(segment["text"]).split()
                 next_count = word_count + len(segment_words)
-                if chunk_segments and next_count > max_words:
+                if chunk_segments and next_count > target_words:
                     break
                 chunk_segments.append(segment)
                 word_count = next_count
                 cursor += 1
-                if word_count >= target_words:
-                    break
 
             chunks.append(
                 {
@@ -143,6 +146,7 @@ class CLIPEmbedder:
                 break
             index = max(index + 1, cursor - max(0, overlap_segments))
 
+        logging.info("Created %d transcript chunks", len(chunks))
         return chunks
 
     def embed_batch_images(self, paths: list[str | Path], batch_size: int = 32) -> np.ndarray:

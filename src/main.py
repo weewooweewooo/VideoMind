@@ -13,9 +13,12 @@ from typing import Any
 
 import redis
 import requests
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field, model_validator
+
+load_dotenv()
 
 from src.ingestion.archive_utils import resolve_direct_url
 from src.ingestion.extractor import extract_frames_and_transcript_concurrent
