@@ -24,11 +24,7 @@ from src.retrieval.embedder import CLIPEmbedder
 from src.retrieval.store import VideoMindStore
 
 
-SYSTEM_PROMPT = """You are VideoMind, an AI assistant that answers questions about lecture videos.
-Answer based only on the retrieved video context and conversation history provided.
-Always cite timestamps when referencing specific moments.
-If the context is insufficient, say so clearly.
-"""
+SYSTEM_PROMPT = Path("prompts/system.txt").read_text()
 logger = logging.getLogger(__name__)
 
 
@@ -186,7 +182,7 @@ Answer:"""
     def _insufficient_context_response(self) -> dict[str, Any]:
         """Return the standard insufficient-context response."""
         return {
-            "answer": "The retrieved video context is insufficient to answer the question.",
+            "answer": "This video does not cover that topic",
             "sources": [],
         }
 

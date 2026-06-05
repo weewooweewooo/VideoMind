@@ -118,7 +118,6 @@ class QueryResponse(BaseModel):
     """Structured RAG response."""
 
     answer: str
-    sources: list[SourceResponse]
     session_id: str
     conversation_turn: int
 
@@ -405,7 +404,7 @@ async def query_video(request: QueryRequest) -> QueryResponse:
             lambda: pipeline.query(request.question, video_name=request.video_name)
         )
         return QueryResponse(
-            **result,
+            answer=result["answer"],
             session_id=session_id,
             conversation_turn=len(pipeline.get_history()) // 2,
         )
@@ -434,8 +433,10 @@ async def query_video_stream(request: QueryRequest) -> StreamingResponse:
                 session_id=session_id,
                 video_name=request.video_name,
             ):
+                if "sources" in event:
+                    continue
                 yield f"data: {json.dumps(event)}\n\n"
-            yield f"data: {json.dumps({'done': True})}\n\n"
+            yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'conversation_turn': len(pipeline.get_history()) // 2})}\n\n"
         except Exception as exc:
             yield f"data: {json.dumps({'error': f'Query failed: {exc}'})}\n\n"
 
