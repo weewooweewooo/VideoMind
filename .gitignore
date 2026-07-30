@@ -1,15 +1,6 @@
-# Data — never commit
-data/pairs/
-!data/pairs/
-data/pairs/*
-!data/pairs/.gitkeep
+# Local media and generated transcripts
 data/*.mp4
-data/baseline_results.json
-
-# These no longer exist but keep for safety
-data/frames/
-data/videos/
-data/transcripts/
+transcript.json
 
 # Python
 __pycache__/
@@ -18,7 +9,7 @@ __pycache__/
 .env
 venv/
 
-# Models
+# Local model artifacts
 *.pt
 *.pth
 *.bin
@@ -27,6 +18,3 @@ venv/
 # Logs
 *.log
 logs/
-
-# Test files
-test_setup.py
