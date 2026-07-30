@@ -9,7 +9,7 @@ retrieval backend.
 
 ```text
 local video
-  -> Faster-Whisper transcription
+  -> transcript cache lookup or Faster-Whisper transcription
   -> timestamped transcript chunks
   -> selected local retrieval backend
      |-> TF-IDF (default)
@@ -76,6 +76,64 @@ transcription should be retained. Existing files are not overwritten.
 
 The transcription and retrieval commands below remain available as lower-level
 tools.
+
+## Persistent transcript cache
+
+Unified video mode caches timestamped transcript segments by default, so a new
+process can avoid retranscribing an unchanged video with the same transcription
+configuration:
+
+```powershell
+python -m src.videomind `
+  data\video.mp4 `
+  "care transformation"
+```
+
+Use a custom cache directory when required:
+
+```powershell
+python -m src.videomind `
+  data\video.mp4 `
+  "care transformation" `
+  --cache-dir "D:\VideoMindCache"
+```
+
+Disable both cache reads and writes:
+
+```powershell
+python -m src.videomind `
+  data\video.mp4 `
+  "care transformation" `
+  --no-cache
+```
+
+When combined with `--no-cache`, `--cache-dir` is accepted but ignored.
+
+Ignore and atomically replace an existing matching entry:
+
+```powershell
+python -m src.videomind `
+  data\video.mp4 `
+  "care transformation" `
+  --refresh-cache
+```
+
+`--cache-dir` takes precedence over `VIDEOMIND_CACHE_DIR`. When neither is set,
+Windows uses `%LOCALAPPDATA%\VideoMind\cache`; other platforms use
+`~/.cache/videomind`.
+
+Cache identity includes the video content hash, cache schema version, Whisper
+model identifier or resolved local path, automatic or explicit language, beam
+size, device, and compute type. Chunk size, chunk overlap, retrieval backend,
+embedding model, score thresholds, and questions are not part of that identity,
+so those settings can change without retranscription.
+
+Cache files contain transcript text, timestamps, duration, language, diagnostic
+source path, and transcription configuration. They do not contain the video,
+semantic embeddings, TF-IDF vectors, retrieval results, questions, or
+interactive history. Transcript-input mode does not use the automatic cache.
+Removing the cache directory is safe because VideoMind can regenerate it.
+Future cache schema versions are not guaranteed to remain compatible.
 
 ## Retrieval backends
 
@@ -193,6 +251,58 @@ than generated answers. The transcript, embedding model, chunk embeddings, and
 retrieval index remain process-local and are discarded when the session exits.
 One session searches one transcript.
 
+## Small local video libraries
+
+Search the supported top-level media files in one directory:
+
+```powershell
+python -m src.videomind `
+  --library .\videos `
+  "patient safety" `
+  --retriever tfidf
+```
+
+Video libraries discover `.mp4`, `.m4a`, `.mov`, `.mkv`, and `.webm` files
+non-recursively and in deterministic filename order. Each distinct video uses
+the persistent transcript cache. Duplicate video contents are hashed, reported
+on stderr, and indexed once under the first deterministic filename.
+
+Search a directory containing transcript JSON files without Faster-Whisper:
+
+```powershell
+python -m src.videomind `
+  --transcript-library .\transcripts `
+  "healthcare delivery" `
+  --retriever hybrid `
+  --semantic-min-score 0.55
+```
+
+Every top-level `.json` file is treated as a transcript and validated. Duplicate
+normalized transcript content is indexed once. Library initialization is
+fail-fast: an invalid or unreadable selected file aborts the operation and its
+path is reported rather than silently omitting it.
+
+Start an interactive video library:
+
+```powershell
+python -m src.videomind `
+  --library .\videos `
+  --retriever hybrid `
+  --semantic-min-score 0.55 `
+  --chunk-words 100 `
+  --interactive
+```
+
+VideoMind validates and chunks each transcript separately, assigns globally
+unique library chunk IDs, and builds one combined TF-IDF, semantic, or hybrid
+index. IDF, semantic embeddings, and hybrid candidate ranking therefore span
+the complete library. Results retain the source video, original per-video chunk
+ID, text, and timestamps. Interactive questions reuse that one process-local
+index and remain independent.
+
+Library mode is intended for small local collections. It needs no database,
+vector service, cloud API, or persistent embedding index.
+
 ## Transcription
 
 Transcribe one local video and write timestamped segments and chunks:
@@ -236,6 +346,8 @@ python -m src.retrieval.local_retriever --help
 - The tokenizer is intentionally ASCII-focused.
 - Each CLI invocation searches one transcript; interactive mode reuses its
   in-memory index across independent questions.
-- Transcript chunks and embeddings are process-local and are not persisted.
-- The unified command processes one video per invocation.
+- Transcript chunks and embeddings are process-local and are not persisted;
+  only timestamped transcription segments can be cached between processes.
+- A combined library index is intended only for a small local collection and
+  is rebuilt in each process.
 - VideoMind returns ranked transcript evidence, not a generated answer.

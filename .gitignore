@@ -1,6 +1,7 @@
 # Local media and generated transcripts
 data/*.mp4
 transcript.json
+.videomind-cache/
 
 # Python
 __pycache__/

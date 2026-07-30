@@ -6,14 +6,28 @@ import argparse
 import json
 import math
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from src.ingestion.transcript_cache import (
+    TranscriptCacheIdentity,
+    build_cache_identity,
+    cache_entry_path,
+    load_cached_transcript,
+    prepare_cache_directory_for_write,
+    resolve_cache_directory,
+    store_cached_transcript,
+    validate_cache_directory,
+)
 from src.ingestion.transcriber import (
     build_transcript_output,
+    resolve_beam_size,
     resolve_chunk_overlap_words,
     resolve_chunk_words,
+    resolve_compute_type,
+    resolve_whisper_device,
+    resolve_whisper_model,
     transcribe_to_memory,
 )
 from src.ingestion.transcript_chunks import normalize_transcript_segments
@@ -279,27 +293,115 @@ def _transcribe_video(
     model: str | None,
     device: str,
     compute_type: str,
+    beam_size: int | None,
+    language: str | None,
     chunk_words: int | None,
     chunk_overlap_words: int,
-) -> dict[str, Any]:
+    cache_dir: str | Path | None,
+    use_cache: bool,
+    refresh_cache: bool,
+    cache_identity: TranscriptCacheIdentity | None = None,
+    status_callback: Callable[[str], None] | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
     path = _validated_video_path(video_path)
+    if refresh_cache and not use_cache:
+        raise ValueError("refresh_cache requires use_cache")
+
+    resolved_model = resolve_whisper_model(model)
+    resolved_device = resolve_whisper_device(device)
+    resolved_compute_type = resolve_compute_type(compute_type)
+    resolved_beam_size = resolve_beam_size(beam_size)
+    resolved_language = language.strip() if language else None
     resolved_chunk_words = resolve_chunk_words(chunk_words)
     resolved_chunk_overlap = resolve_chunk_overlap_words(
         chunk_overlap_words,
         chunk_words=resolved_chunk_words,
     )
-    transcript = transcribe_to_memory(
-        str(path),
-        video_name=str(path),
-        model_size=model,
-        device=device,
-        compute_type=compute_type,
-    )
-    return build_transcript_output(
+
+    def report(message: str) -> None:
+        if status_callback is not None:
+            status_callback(message)
+
+    transcript: dict[str, Any] | None = None
+    cache_metadata: dict[str, Any] = {
+        "enabled": False,
+        "status": "disabled",
+    }
+    identity = None
+    resolved_cache_dir = None
+    if use_cache:
+        resolved_cache_dir = resolve_cache_directory(cache_dir)
+        validate_cache_directory(resolved_cache_dir)
+        identity = cache_identity
+        if identity is None:
+            identity = build_cache_identity(
+                path,
+                model=resolved_model,
+                language=resolved_language,
+                beam_size=resolved_beam_size,
+                device=resolved_device,
+                compute_type=resolved_compute_type,
+            )
+        destination = cache_entry_path(resolved_cache_dir, identity)
+        cache_status = "refreshed" if refresh_cache else "miss"
+        cache_metadata = {
+            "enabled": True,
+            "status": cache_status,
+            "path": str(destination),
+        }
+        if not refresh_cache:
+            transcript = load_cached_transcript(resolved_cache_dir, identity)
+            if transcript is not None:
+                transcript["video"] = str(path)
+                cache_metadata["status"] = "hit"
+                report("VideoMind transcript cache hit.")
+
+    if transcript is None:
+        if use_cache:
+            if resolved_cache_dir is None:
+                raise RuntimeError("Transcript cache initialization failed")
+            prepare_cache_directory_for_write(resolved_cache_dir)
+            if refresh_cache:
+                report(
+                    "VideoMind transcript cache refresh requested; "
+                    "transcribing video."
+                )
+            else:
+                report("VideoMind transcript cache miss; transcribing video.")
+        else:
+            report("VideoMind transcript cache disabled; transcribing video.")
+
+        transcript = transcribe_to_memory(
+            str(path),
+            video_name=str(path),
+            model_size=resolved_model,
+            device=resolved_device,
+            compute_type=resolved_compute_type,
+            beam_size=resolved_beam_size,
+            language=resolved_language,
+        )
+        if use_cache:
+            try:
+                if resolved_cache_dir is None or identity is None:
+                    raise RuntimeError("Transcript cache initialization failed")
+                store_cached_transcript(
+                    resolved_cache_dir,
+                    identity,
+                    transcript,
+                    {"source_video": str(path.resolve())},
+                    replace=refresh_cache,
+                )
+                if refresh_cache:
+                    report("VideoMind transcript cache refreshed.")
+            except OSError as exc:
+                report(f"VideoMind transcript cache write warning: {exc}")
+
+    output = build_transcript_output(
         transcript,
         chunk_words=resolved_chunk_words,
         chunk_overlap_words=resolved_chunk_overlap,
     )
+    return output, cache_metadata
 
 
 def _query_video_with_transcript(
@@ -309,6 +411,8 @@ def _query_video_with_transcript(
     model: str | None,
     device: str,
     compute_type: str,
+    beam_size: int | None,
+    language: str | None,
     chunk_words: int | None,
     chunk_overlap_words: int,
     retriever: str,
@@ -317,6 +421,9 @@ def _query_video_with_transcript(
     min_score: float | None,
     semantic_min_score: float | None,
     include_zero_scores: bool,
+    cache_dir: str | Path | None,
+    use_cache: bool,
+    refresh_cache: bool,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     normalized_question = _validated_question(question)
     _validated_top_k(top_k)
@@ -326,13 +433,18 @@ def _query_video_with_transcript(
         min_score,
         semantic_min_score,
     )
-    transcript = _transcribe_video(
+    transcript, cache_metadata = _transcribe_video(
         video_path,
         model=model,
         device=device,
         compute_type=compute_type,
+        beam_size=beam_size,
+        language=language,
         chunk_words=chunk_words,
         chunk_overlap_words=chunk_overlap_words,
+        cache_dir=cache_dir,
+        use_cache=use_cache,
+        refresh_cache=refresh_cache,
     )
     result = query_transcript(
         transcript,
@@ -345,6 +457,7 @@ def _query_video_with_transcript(
         semantic_min_score=semantic_min_score,
         include_zero_scores=include_zero_scores,
     )
+    result["transcript_cache"] = cache_metadata
     return result, transcript
 
 
@@ -355,6 +468,8 @@ def query_video(
     model: str | None = None,
     device: str = "cpu",
     compute_type: str = "int8",
+    beam_size: int | None = None,
+    language: str | None = None,
     chunk_words: int | None = None,
     chunk_overlap_words: int = 0,
     retriever: str = "tfidf",
@@ -363,6 +478,9 @@ def query_video(
     min_score: float | None = None,
     semantic_min_score: float | None = None,
     include_zero_scores: bool = False,
+    cache_dir: str | Path | None = None,
+    use_cache: bool = True,
+    refresh_cache: bool = False,
 ) -> dict[str, Any]:
     """Transcribe one local video and return ranked timestamped chunks."""
     result, _ = _query_video_with_transcript(
@@ -371,6 +489,8 @@ def query_video(
         model=model,
         device=device,
         compute_type=compute_type,
+        beam_size=beam_size,
+        language=language,
         chunk_words=chunk_words,
         chunk_overlap_words=chunk_overlap_words,
         retriever=retriever,
@@ -379,8 +499,116 @@ def query_video(
         min_score=min_score,
         semantic_min_score=semantic_min_score,
         include_zero_scores=include_zero_scores,
+        cache_dir=cache_dir,
+        use_cache=use_cache,
+        refresh_cache=refresh_cache,
     )
     return result
+
+
+def _initialize_video_library(
+    directory: str | Path,
+    *,
+    model: str | None,
+    device: str,
+    compute_type: str,
+    beam_size: int | None,
+    language: str | None,
+    chunk_words: int | None,
+    chunk_overlap_words: int,
+    retriever: str,
+    embedding_model: str | None,
+    min_score: float | None,
+    semantic_min_score: float | None,
+    cache_dir: str | Path | None,
+    use_cache: bool,
+    refresh_cache: bool,
+    status_callback: Callable[[str], None] | None = None,
+) -> tuple[Any, dict[str, Any]]:
+    """Load distinct videos once and build one combined retrieval index."""
+    from src.library import VideoLibrary, discover_video_files
+
+    resolved_model = resolve_whisper_model(model)
+    resolved_device = resolve_whisper_device(device)
+    resolved_compute_type = resolve_compute_type(compute_type)
+    resolved_beam_size = resolve_beam_size(beam_size)
+    resolved_language = language.strip() if language else None
+    paths = discover_video_files(directory)
+    transcripts = []
+    source_labels = []
+    seen_video_hashes: dict[str, Path] = {}
+    cache_summary = {
+        "enabled": use_cache,
+        "hits": 0,
+        "misses": 0,
+        "refreshed": 0,
+        "disabled": 0,
+    }
+
+    def report(message: str) -> None:
+        if status_callback is not None:
+            status_callback(message)
+
+    for path in paths:
+        identity = build_cache_identity(
+            path,
+            model=resolved_model,
+            language=resolved_language,
+            beam_size=resolved_beam_size,
+            device=resolved_device,
+            compute_type=resolved_compute_type,
+        )
+        duplicate_of = seen_video_hashes.get(identity.video_sha256)
+        if duplicate_of is not None:
+            report(
+                "VideoMind duplicate video content skipped: "
+                f"{path.name}; using {duplicate_of.name}."
+            )
+            continue
+        seen_video_hashes[identity.video_sha256] = path
+
+        transcript, cache_metadata = _transcribe_video(
+            path,
+            model=resolved_model,
+            device=resolved_device,
+            compute_type=resolved_compute_type,
+            beam_size=resolved_beam_size,
+            language=resolved_language,
+            chunk_words=chunk_words,
+            chunk_overlap_words=chunk_overlap_words,
+            cache_dir=cache_dir,
+            use_cache=use_cache,
+            refresh_cache=refresh_cache,
+            cache_identity=identity,
+            status_callback=(
+                lambda message, video_name=path.name: report(
+                    f"[{video_name}] {message}"
+                )
+            ),
+        )
+        transcript["video"] = path.name
+        transcripts.append(transcript)
+        source_labels.append(str(path))
+        status = str(cache_metadata["status"])
+        summary_field = {
+            "hit": "hits",
+            "miss": "misses",
+            "refreshed": "refreshed",
+            "disabled": "disabled",
+        }[status]
+        cache_summary[summary_field] += 1
+
+    library = VideoLibrary(
+        transcripts,
+        retriever=retriever,
+        embedding_model=embedding_model,
+        device=resolved_device,
+        min_score=min_score,
+        semantic_min_score=semantic_min_score,
+        source_labels=source_labels,
+        warning_callback=report,
+    )
+    return library, cache_summary
 
 
 def load_transcript_input(path: str | Path) -> dict[str, Any]:
@@ -435,12 +663,13 @@ def _print_json(value: Mapping[str, Any], *, pretty: bool) -> None:
 
 
 def _query_and_print(
-    session: VideoMindSession,
+    session: Any,
     question: str,
     *,
     top_k: int,
     include_zero_scores: bool,
     pretty: bool,
+    result_metadata: Mapping[str, Any] | None = None,
 ) -> None:
     try:
         result = session.query(
@@ -451,16 +680,20 @@ def _query_and_print(
     except Exception as exc:
         print(f"VideoMind query failed: {exc}", file=sys.stderr)
         return
+    if result_metadata is not None:
+        result.update(result_metadata)
     _print_json(result, pretty=pretty)
 
 
 def _run_interactive_session(
-    session: VideoMindSession,
+    session: Any,
     *,
     initial_question: str | None,
     top_k: int,
     include_zero_scores: bool,
     pretty: bool,
+    result_metadata: Mapping[str, Any] | None = None,
+    ready_message: str | None = None,
 ) -> int:
     """Read independent questions from stdin and reuse one indexed session."""
     try:
@@ -471,10 +704,12 @@ def _run_interactive_session(
                 top_k=top_k,
                 include_zero_scores=include_zero_scores,
                 pretty=pretty,
+                result_metadata=result_metadata,
             )
 
         print(
-            "VideoMind ready. Enter a question, or use :help for commands.",
+            ready_message
+            or "VideoMind ready. Enter a question, or use :help for commands.",
             file=sys.stderr,
         )
         while True:
@@ -499,6 +734,7 @@ def _run_interactive_session(
                 top_k=top_k,
                 include_zero_scores=include_zero_scores,
                 pretty=pretty,
+                result_metadata=result_metadata,
             )
     except KeyboardInterrupt:
         print("\nVideoMind interactive session ended", file=sys.stderr)
@@ -509,15 +745,15 @@ def build_argument_parser() -> argparse.ArgumentParser:
     """Create the unified dependency-light command-line parser."""
     parser = argparse.ArgumentParser(
         description=(
-            "Transcribe a local video and search it, or search an existing "
-            "transcript JSON."
+            "Search a local video, an existing transcript, or a small local "
+            "video/transcript library."
         )
     )
     parser.add_argument(
         "source",
         nargs="?",
         help=(
-            "Local video path, or the question when --transcript-input is used."
+            "Local video path, or the question with a transcript/library mode."
         ),
     )
     parser.add_argument(
@@ -525,11 +761,24 @@ def build_argument_parser() -> argparse.ArgumentParser:
         nargs="?",
         help="Search question when a local video path is supplied.",
     )
-    parser.add_argument(
+    input_mode = parser.add_mutually_exclusive_group()
+    input_mode.add_argument(
         "--transcript-input",
         type=Path,
         default=None,
         help="Search an existing transcript JSON without invoking Faster-Whisper.",
+    )
+    input_mode.add_argument(
+        "--library",
+        type=Path,
+        default=None,
+        help="Search supported videos in one non-recursive local directory.",
+    )
+    input_mode.add_argument(
+        "--transcript-library",
+        type=Path,
+        default=None,
+        help="Search transcript JSON files in one non-recursive local directory.",
     )
     parser.add_argument(
         "--model",
@@ -546,6 +795,17 @@ def build_argument_parser() -> argparse.ArgumentParser:
         "--compute-type",
         default="int8",
         help='Faster-Whisper compute type for video mode (default: "int8").',
+    )
+    parser.add_argument(
+        "--beam-size",
+        type=int,
+        default=None,
+        help="Faster-Whisper beam size for video mode (default: 5).",
+    )
+    parser.add_argument(
+        "--language",
+        default=None,
+        help="Optional transcription language; omit for automatic detection.",
     )
     parser.add_argument(
         "--chunk-words",
@@ -612,6 +872,26 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help="Save the complete generated transcript; video mode only.",
     )
     parser.add_argument(
+        "--cache-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Transcript cache directory (default: VIDEOMIND_CACHE_DIR or "
+            "the platform user cache)."
+        ),
+    )
+    cache_mode = parser.add_mutually_exclusive_group()
+    cache_mode.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Disable transcript cache reads and writes.",
+    )
+    cache_mode.add_argument(
+        "--refresh-cache",
+        action="store_true",
+        help="Retranscribe and atomically replace the matching cache entry.",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=None,
@@ -620,7 +900,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--interactive",
         action="store_true",
-        help="Reuse one transcript index for independent questions read from stdin.",
+        help="Reuse one retrieval index for independent questions read from stdin.",
     )
     parser.add_argument(
         "--pretty",
@@ -642,7 +922,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         _validate_destination(args.save_transcript, "Transcript output")
         validation_chunk_words = resolve_chunk_words(
             args.chunk_words,
-            environ={} if args.transcript_input is not None else None,
+            environ=(
+                {}
+                if (
+                    args.transcript_input is not None
+                    or args.transcript_library is not None
+                )
+                else None
+            ),
         )
         resolve_chunk_overlap_words(
             args.chunk_overlap_words,
@@ -679,6 +966,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             if args.save_transcript is not None:
                 raise ValueError("--save-transcript is only valid in video mode")
+            if (
+                args.cache_dir is not None
+                or args.no_cache
+                or args.refresh_cache
+            ):
+                raise ValueError(
+                    "Transcript cache options are only valid in video mode"
+                )
             transcript = load_transcript_input(args.transcript_input)
             session = VideoMindSession(
                 transcript,
@@ -691,20 +986,105 @@ def main(argv: Sequence[str] | None = None) -> int:
                 chunk_overlap_words=args.chunk_overlap_words,
             )
             initial_question = args.source
+            result_metadata = None
+            ready_message = None
+        elif args.library is not None or args.transcript_library is not None:
+            library_option = (
+                "--library"
+                if args.library is not None
+                else "--transcript-library"
+            )
+            if args.question is not None:
+                raise ValueError(
+                    f"Supply only an optional question with {library_option}"
+                )
+            if args.source is None and not args.interactive:
+                raise ValueError(
+                    f"A question is required when {library_option} is used"
+                )
+            if args.save_transcript is not None:
+                raise ValueError(
+                    "--save-transcript is not supported with library modes"
+                )
+
+            if args.library is not None:
+                session, cache_summary = _initialize_video_library(
+                    args.library,
+                    model=args.model,
+                    device=args.device,
+                    compute_type=args.compute_type,
+                    beam_size=args.beam_size,
+                    language=args.language,
+                    chunk_words=args.chunk_words,
+                    chunk_overlap_words=args.chunk_overlap_words,
+                    retriever=args.retriever,
+                    embedding_model=args.embedding_model,
+                    min_score=args.min_score,
+                    semantic_min_score=args.semantic_min_score,
+                    cache_dir=args.cache_dir,
+                    use_cache=not args.no_cache,
+                    refresh_cache=args.refresh_cache,
+                    status_callback=lambda message: print(
+                        message,
+                        file=sys.stderr,
+                    ),
+                )
+                result_metadata = {"transcript_cache": cache_summary}
+            else:
+                if (
+                    args.cache_dir is not None
+                    or args.no_cache
+                    or args.refresh_cache
+                ):
+                    raise ValueError(
+                        "Transcript cache options are only valid in video modes"
+                    )
+                from src.library import VideoLibrary, load_transcript_library
+
+                documents, source_labels = load_transcript_library(
+                    args.transcript_library
+                )
+                session = VideoLibrary(
+                    documents,
+                    retriever=args.retriever,
+                    embedding_model=args.embedding_model,
+                    device=args.device,
+                    min_score=args.min_score,
+                    semantic_min_score=args.semantic_min_score,
+                    chunk_words=args.chunk_words,
+                    chunk_overlap_words=args.chunk_overlap_words,
+                    source_labels=source_labels,
+                    warning_callback=lambda message: print(
+                        message,
+                        file=sys.stderr,
+                    ),
+                )
+                result_metadata = None
+            initial_question = args.source
+            ready_message = (
+                "VideoMind library ready: "
+                f"{session.video_count} videos, {session.chunk_count} chunks."
+            )
         else:
             if args.source is None:
                 raise ValueError(
-                    "Supply a local video path or use --transcript-input"
+                    "Supply a local video path or select a transcript/library mode"
                 )
             if args.question is None and not args.interactive:
                 raise ValueError("A question is required after the video path")
-            transcript = _transcribe_video(
+            transcript, cache_metadata = _transcribe_video(
                 args.source,
                 model=args.model,
                 device=args.device,
                 compute_type=args.compute_type,
+                beam_size=args.beam_size,
+                language=args.language,
                 chunk_words=args.chunk_words,
                 chunk_overlap_words=args.chunk_overlap_words,
+                cache_dir=args.cache_dir,
+                use_cache=not args.no_cache,
+                refresh_cache=args.refresh_cache,
+                status_callback=lambda message: print(message, file=sys.stderr),
             )
             session = VideoMindSession(
                 transcript,
@@ -715,6 +1095,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 semantic_min_score=args.semantic_min_score,
             )
             initial_question = args.question
+            result_metadata = {"transcript_cache": cache_metadata}
+            ready_message = None
             if args.save_transcript is not None:
                 _write_json(args.save_transcript, transcript, pretty=True)
 
@@ -725,6 +1107,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 top_k=args.top_k,
                 include_zero_scores=args.include_zero_scores,
                 pretty=args.pretty,
+                result_metadata=result_metadata,
+                ready_message=ready_message,
             )
 
         result = session.query(
@@ -732,6 +1116,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             top_k=args.top_k,
             include_zero_scores=args.include_zero_scores,
         )
+        if result_metadata is not None:
+            result.update(result_metadata)
         if args.output is None:
             _print_json(result, pretty=args.pretty)
         else:
