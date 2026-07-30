@@ -220,13 +220,14 @@ class LocalTfidfRetriever:
 
 
 def format_search_output(
-    retriever: LocalTfidfRetriever,
+    retriever: Any,
     query: str,
     results: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
-    """Format search results for stable JSON output."""
-    formatted_results = [
-        {
+    """Format compatible retrieval results for stable JSON output."""
+    formatted_results = []
+    for result in results:
+        formatted_result = {
             "rank": int(result["rank"]),
             "chunk_id": int(result["chunk_id"]),
             "start": float(result["start"]),
@@ -234,8 +235,17 @@ def format_search_output(
             "text": str(result["text"]),
             "score": round(float(result["score"]), 6),
         }
-        for result in results
-    ]
+        for field in ("tfidf_rank", "semantic_rank"):
+            if field in result:
+                value = result[field]
+                formatted_result[field] = None if value is None else int(value)
+        for field in ("tfidf_score", "semantic_score"):
+            if field in result:
+                value = result[field]
+                formatted_result[field] = (
+                    None if value is None else round(float(value), 6)
+                )
+        formatted_results.append(formatted_result)
     return {
         "query": query,
         "video": retriever.document.video,

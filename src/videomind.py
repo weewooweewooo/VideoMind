@@ -12,6 +12,7 @@ from typing import Any
 
 from src.ingestion.transcriber import (
     build_transcript_output,
+    resolve_chunk_overlap_words,
     resolve_chunk_words,
     transcribe_to_memory,
 )
@@ -46,6 +47,45 @@ def _validated_min_score(min_score: float) -> float:
     return score
 
 
+def _resolve_retrieval_options(
+    retriever: str,
+    embedding_model: str | None,
+    min_score: float | None,
+    semantic_min_score: float | None,
+) -> tuple[str, float]:
+    if not isinstance(retriever, str):
+        raise ValueError("retriever must be one of: tfidf, semantic, hybrid")
+    backend = retriever.strip().lower()
+    if backend not in {"tfidf", "semantic", "hybrid"}:
+        raise ValueError("retriever must be one of: tfidf, semantic, hybrid")
+    if backend == "tfidf":
+        if embedding_model is not None:
+            raise ValueError(
+                "embedding_model is only valid with semantic or hybrid retrieval"
+            )
+        if semantic_min_score is not None:
+            raise ValueError(
+                "semantic_min_score is only valid with semantic or hybrid retrieval"
+            )
+        threshold = 0.0 if min_score is None else min_score
+    else:
+        from src.retrieval.semantic_retriever import DEFAULT_SEMANTIC_MIN_SCORE
+
+        if min_score is not None and semantic_min_score is not None:
+            raise ValueError(
+                "Use either min_score or semantic_min_score, not both"
+            )
+        configured_threshold = (
+            semantic_min_score if semantic_min_score is not None else min_score
+        )
+        threshold = (
+            DEFAULT_SEMANTIC_MIN_SCORE
+            if configured_threshold is None
+            else configured_threshold
+        )
+    return backend, _validated_min_score(threshold)
+
+
 def _validated_video_path(video_path: str | Path) -> Path:
     if not isinstance(video_path, (str, Path)) or not str(video_path).strip():
         raise ValueError("A local video path is required")
@@ -72,36 +112,97 @@ def query_transcript(
     transcript: Mapping[str, Any],
     question: str,
     *,
+    retriever: str = "tfidf",
+    embedding_model: str | None = None,
+    device: str = "cpu",
     top_k: int = 5,
-    min_score: float = 0.0,
+    min_score: float | None = None,
+    semantic_min_score: float | None = None,
     include_zero_scores: bool = False,
+    chunk_words: int | None = None,
+    chunk_overlap_words: int = 0,
 ) -> dict[str, Any]:
-    """Search one in-memory transcript using the existing local retriever."""
+    """Search one in-memory transcript using the explicitly selected backend."""
     normalized_question = _validated_question(question)
     resolved_top_k = _validated_top_k(top_k)
-    resolved_min_score = _validated_min_score(min_score)
-    document, segment_count = _validated_transcript_mapping(transcript)
-    retriever = LocalTfidfRetriever(document)
-    results = retriever.search(
-        normalized_question,
-        top_k=resolved_top_k,
-        min_score=resolved_min_score,
-        include_zero_scores=include_zero_scores,
+    resolved_chunk_words = resolve_chunk_words(chunk_words, environ={})
+    resolved_chunk_overlap = resolve_chunk_overlap_words(
+        chunk_overlap_words,
+        chunk_words=resolved_chunk_words,
     )
-    retrieval_output = format_search_output(
+    search_transcript = transcript
+    if chunk_words is not None or resolved_chunk_overlap:
+        search_transcript = build_transcript_output(
+            transcript,
+            chunk_words=resolved_chunk_words,
+            chunk_overlap_words=resolved_chunk_overlap,
+        )
+    document, segment_count = _validated_transcript_mapping(search_transcript)
+    backend, resolved_min_score = _resolve_retrieval_options(
         retriever,
+        embedding_model,
+        min_score,
+        semantic_min_score,
+    )
+    if backend == "tfidf":
+        retrieval_backend = LocalTfidfRetriever(document)
+        results = retrieval_backend.search(
+            normalized_question,
+            top_k=resolved_top_k,
+            min_score=resolved_min_score,
+            include_zero_scores=include_zero_scores,
+        )
+    elif backend == "semantic":
+        from src.retrieval.semantic_retriever import SemanticRetriever
+
+        retrieval_backend = SemanticRetriever(
+            document,
+            model_name=embedding_model,
+            device=device,
+        )
+        results = retrieval_backend.search(
+            normalized_question,
+            top_k=resolved_top_k,
+            min_score=resolved_min_score,
+            include_zero_scores=include_zero_scores,
+        )
+    else:
+        if include_zero_scores:
+            raise ValueError(
+                "include_zero_scores is not supported with hybrid retrieval"
+            )
+        from src.retrieval.hybrid_retriever import HybridRetriever
+
+        retrieval_backend = HybridRetriever(
+            document,
+            model_name=embedding_model,
+            device=device,
+        )
+        results = retrieval_backend.search(
+            normalized_question,
+            top_k=resolved_top_k,
+            semantic_min_score=resolved_min_score,
+        )
+    retrieval_output = format_search_output(
+        retrieval_backend,
         normalized_question,
         results,
     )
-    return {
+    output = {
         "video": retrieval_output["video"],
         "query": retrieval_output["query"],
-        "language": transcript.get("language"),
+        "language": search_transcript.get("language"),
         "segment_count": segment_count,
         "chunk_count": retrieval_output["chunk_count"],
+        "retriever": backend,
         "result_count": retrieval_output["result_count"],
         "results": retrieval_output["results"],
     }
+    if backend in {"semantic", "hybrid"}:
+        output["embedding_model"] = retrieval_backend.model_name
+    if backend == "hybrid":
+        output["rrf_k"] = retrieval_backend.rrf_k
+    return output
 
 
 def _transcribe_video(
@@ -111,9 +212,14 @@ def _transcribe_video(
     device: str,
     compute_type: str,
     chunk_words: int | None,
+    chunk_overlap_words: int,
 ) -> dict[str, Any]:
     path = _validated_video_path(video_path)
     resolved_chunk_words = resolve_chunk_words(chunk_words)
+    resolved_chunk_overlap = resolve_chunk_overlap_words(
+        chunk_overlap_words,
+        chunk_words=resolved_chunk_words,
+    )
     transcript = transcribe_to_memory(
         str(path),
         video_name=str(path),
@@ -124,6 +230,7 @@ def _transcribe_video(
     return build_transcript_output(
         transcript,
         chunk_words=resolved_chunk_words,
+        chunk_overlap_words=resolved_chunk_overlap,
     )
 
 
@@ -135,25 +242,39 @@ def _query_video_with_transcript(
     device: str,
     compute_type: str,
     chunk_words: int | None,
+    chunk_overlap_words: int,
+    retriever: str,
+    embedding_model: str | None,
     top_k: int,
-    min_score: float,
+    min_score: float | None,
+    semantic_min_score: float | None,
     include_zero_scores: bool,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     normalized_question = _validated_question(question)
     _validated_top_k(top_k)
-    _validated_min_score(min_score)
+    _resolve_retrieval_options(
+        retriever,
+        embedding_model,
+        min_score,
+        semantic_min_score,
+    )
     transcript = _transcribe_video(
         video_path,
         model=model,
         device=device,
         compute_type=compute_type,
         chunk_words=chunk_words,
+        chunk_overlap_words=chunk_overlap_words,
     )
     result = query_transcript(
         transcript,
         normalized_question,
+        retriever=retriever,
+        embedding_model=embedding_model,
+        device=device,
         top_k=top_k,
         min_score=min_score,
+        semantic_min_score=semantic_min_score,
         include_zero_scores=include_zero_scores,
     )
     return result, transcript
@@ -167,8 +288,12 @@ def query_video(
     device: str = "cpu",
     compute_type: str = "int8",
     chunk_words: int | None = None,
+    chunk_overlap_words: int = 0,
+    retriever: str = "tfidf",
+    embedding_model: str | None = None,
     top_k: int = 5,
-    min_score: float = 0.0,
+    min_score: float | None = None,
+    semantic_min_score: float | None = None,
     include_zero_scores: bool = False,
 ) -> dict[str, Any]:
     """Transcribe one local video and return ranked timestamped chunks."""
@@ -179,8 +304,12 @@ def query_video(
         device=device,
         compute_type=compute_type,
         chunk_words=chunk_words,
+        chunk_overlap_words=chunk_overlap_words,
+        retriever=retriever,
+        embedding_model=embedding_model,
         top_k=top_k,
         min_score=min_score,
+        semantic_min_score=semantic_min_score,
         include_zero_scores=include_zero_scores,
     )
     return result
@@ -245,7 +374,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "question",
         nargs="?",
-        help="Lexical question when a local video path is supplied.",
+        help="Search question when a local video path is supplied.",
     )
     parser.add_argument(
         "--transcript-input",
@@ -276,6 +405,29 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help="Maximum target words per transcript chunk.",
     )
     parser.add_argument(
+        "--chunk-overlap-words",
+        type=int,
+        default=0,
+        help=(
+            "Approximate overlap using complete trailing transcript segments "
+            "(default: 0)."
+        ),
+    )
+    parser.add_argument(
+        "--retriever",
+        choices=("tfidf", "semantic", "hybrid"),
+        default="tfidf",
+        help="Retrieval backend (default: tfidf).",
+    )
+    parser.add_argument(
+        "--embedding-model",
+        default=None,
+        help=(
+            "Semantic model name or local path; valid only with "
+            "--retriever semantic or hybrid."
+        ),
+    )
+    parser.add_argument(
         "--top-k",
         type=int,
         default=5,
@@ -284,8 +436,20 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--min-score",
         type=float,
-        default=0.0,
-        help="Minimum cosine score from 0 to 1 (default: 0).",
+        default=None,
+        help=(
+            "Minimum backend-specific cosine score from 0 to 1 "
+            "(default: 0 for TF-IDF, 0.4 for semantic/hybrid)."
+        ),
+    )
+    parser.add_argument(
+        "--semantic-min-score",
+        type=float,
+        default=None,
+        help=(
+            "Semantic threshold for semantic/hybrid retrieval; takes the "
+            "place of --min-score when supplied."
+        ),
     )
     parser.add_argument(
         "--include-zero-scores",
@@ -318,8 +482,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         _validate_destination(args.output, "Output file")
         _validate_destination(args.save_transcript, "Transcript output")
-        if args.chunk_words is not None:
-            resolve_chunk_words(args.chunk_words)
+        validation_chunk_words = resolve_chunk_words(
+            args.chunk_words,
+            environ={} if args.transcript_input is not None else None,
+        )
+        resolve_chunk_overlap_words(
+            args.chunk_overlap_words,
+            chunk_words=validation_chunk_words,
+        )
         if (
             args.output is not None
             and args.save_transcript is not None
@@ -343,9 +513,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = query_transcript(
                 transcript,
                 args.source,
+                retriever=args.retriever,
+                embedding_model=args.embedding_model,
+                device=args.device,
                 top_k=args.top_k,
                 min_score=args.min_score,
+                semantic_min_score=args.semantic_min_score,
                 include_zero_scores=args.include_zero_scores,
+                chunk_words=args.chunk_words,
+                chunk_overlap_words=args.chunk_overlap_words,
             )
         else:
             if args.source is None:
@@ -361,8 +537,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 device=args.device,
                 compute_type=args.compute_type,
                 chunk_words=args.chunk_words,
+                chunk_overlap_words=args.chunk_overlap_words,
+                retriever=args.retriever,
+                embedding_model=args.embedding_model,
                 top_k=args.top_k,
                 min_score=args.min_score,
+                semantic_min_score=args.semantic_min_score,
                 include_zero_scores=args.include_zero_scores,
             )
             if args.save_transcript is not None:

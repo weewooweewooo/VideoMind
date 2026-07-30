@@ -80,6 +80,23 @@ def resolve_chunk_words(
     return resolved
 
 
+def resolve_chunk_overlap_words(
+    overlap_words: int = 0,
+    *,
+    chunk_words: int,
+) -> int:
+    """Validate optional transcript chunk overlap against the word limit."""
+    if isinstance(overlap_words, bool) or not isinstance(overlap_words, int):
+        raise ValueError("transcript chunk overlap must be an integer")
+    if overlap_words < 0:
+        raise ValueError("transcript chunk overlap must not be negative")
+    if overlap_words >= chunk_words:
+        raise ValueError(
+            "transcript chunk overlap must be less than the chunk word limit"
+        )
+    return overlap_words
+
+
 def resolve_beam_size(
     beam_size: int | None = None,
     environ: Mapping[str, str] | None = None,
@@ -180,10 +197,15 @@ def transcribe_to_memory(
 def build_transcript_output(
     transcript: Mapping[str, Any],
     chunk_words: int = DEFAULT_CHUNK_WORDS,
+    chunk_overlap_words: int = 0,
 ) -> dict[str, Any]:
     """Build transcript-only JSON with validated segments and chunks."""
     segments = normalize_transcript_segments(transcript.get("segments", []))
-    chunks = chunk_transcript_segments(segments, max_words=chunk_words)
+    chunks = chunk_transcript_segments(
+        segments,
+        max_words=chunk_words,
+        overlap_words=chunk_overlap_words,
+    )
     return {
         "video": str(transcript.get("video", "")),
         "language": transcript.get("language"),
@@ -243,6 +265,15 @@ def build_argument_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--chunk-overlap-words",
+        type=int,
+        default=0,
+        help=(
+            "Approximate overlap using complete trailing transcript segments "
+            "(default: 0)."
+        ),
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=None,
@@ -268,9 +299,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             beam_size=resolve_beam_size(args.beam_size),
             language=args.language,
         )
+        chunk_words = resolve_chunk_words(args.chunk_words)
         result = build_transcript_output(
             transcript,
-            chunk_words=resolve_chunk_words(args.chunk_words),
+            chunk_words=chunk_words,
+            chunk_overlap_words=resolve_chunk_overlap_words(
+                args.chunk_overlap_words,
+                chunk_words=chunk_words,
+            ),
         )
         json_output = json.dumps(result, indent=2, ensure_ascii=False)
         if args.output is None:

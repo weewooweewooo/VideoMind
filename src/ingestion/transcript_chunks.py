@@ -64,12 +64,51 @@ def normalize_transcript_segments(
 def chunk_transcript_segments(
     segments: Iterable[Any],
     max_words: int = DEFAULT_CHUNK_WORDS,
+    overlap_words: int = 0,
 ) -> list[dict[str, str | float]]:
-    """Merge adjacent transcript segments into ordered timestamped chunks."""
+    """Merge adjacent transcript segments into ordered timestamped chunks.
+
+    Zero overlap preserves the original word-limited behavior. Positive overlap
+    reuses complete trailing segments so every timestamp remains tied to real
+    transcript segment boundaries.
+    """
     if max_words <= 0:
         raise ValueError("max_words must be greater than zero")
+    if isinstance(overlap_words, bool) or not isinstance(overlap_words, int):
+        raise ValueError("overlap_words must be an integer")
+    if overlap_words < 0:
+        raise ValueError("overlap_words must not be negative")
+    if overlap_words >= max_words:
+        raise ValueError("overlap_words must be less than max_words")
 
     normalized = normalize_transcript_segments(segments)
+
+    if overlap_words:
+        return _chunk_with_segment_overlap(
+            normalized,
+            max_words=max_words,
+            overlap_words=overlap_words,
+        )
+
+    return _chunk_without_overlap(normalized, max_words=max_words)
+
+
+def _format_chunk(
+    segments: list[dict[str, str | float]],
+) -> dict[str, str | float]:
+    return {
+        "start": float(segments[0]["start"]),
+        "end": float(segments[-1]["end"]),
+        "text": " ".join(str(segment["text"]) for segment in segments),
+    }
+
+
+def _chunk_without_overlap(
+    normalized: list[dict[str, str | float]],
+    *,
+    max_words: int,
+) -> list[dict[str, str | float]]:
+    """Preserve the original non-overlapping chunk construction exactly."""
     chunks: list[dict[str, str | float]] = []
     current: list[dict[str, str | float]] = []
     current_word_count = 0
@@ -78,13 +117,7 @@ def chunk_transcript_segments(
         nonlocal current, current_word_count
         if not current:
             return
-        chunks.append(
-            {
-                "start": float(current[0]["start"]),
-                "end": float(current[-1]["end"]),
-                "text": " ".join(str(segment["text"]) for segment in current),
-            }
-        )
+        chunks.append(_format_chunk(current))
         current = []
         current_word_count = 0
 
@@ -106,4 +139,46 @@ def chunk_transcript_segments(
             current_word_count += part_word_count
 
     flush()
+    return chunks
+
+
+def _chunk_with_segment_overlap(
+    normalized: list[dict[str, str | float]],
+    *,
+    max_words: int,
+    overlap_words: int,
+) -> list[dict[str, str | float]]:
+    """Build overlapping chunks by reusing only complete transcript segments."""
+    word_counts = [len(str(segment["text"]).split()) for segment in normalized]
+    chunks: list[dict[str, str | float]] = []
+    start_index = 0
+
+    while start_index < len(normalized):
+        end_index = start_index
+        chunk_word_count = 0
+
+        while end_index < len(normalized):
+            segment_word_count = word_counts[end_index]
+            if (
+                end_index > start_index
+                and chunk_word_count + segment_word_count > max_words
+            ):
+                break
+            chunk_word_count += segment_word_count
+            end_index += 1
+            if chunk_word_count >= max_words:
+                break
+
+        chunks.append(_format_chunk(normalized[start_index:end_index]))
+        if end_index >= len(normalized):
+            break
+
+        next_start = end_index
+        retained_words = 0
+        while next_start - 1 > start_index and retained_words < overlap_words:
+            next_start -= 1
+            retained_words += word_counts[next_start]
+
+        start_index = max(start_index + 1, next_start)
+
     return chunks
