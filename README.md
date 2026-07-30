@@ -157,6 +157,42 @@ Positive overlap reuses complete trailing transcript segments. The actual word
 overlap can therefore exceed the requested approximation; it never cuts a
 segment or invents partial timestamps.
 
+## Interactive query sessions
+
+Interactive mode loads one transcript, optionally rebuilds its chunks, and
+constructs the selected in-memory index once. Each question then reuses that
+same index.
+
+Start a dependency-free TF-IDF session:
+
+```powershell
+python -m src.videomind `
+  --transcript-input transcript.json `
+  --retriever tfidf `
+  --interactive
+```
+
+Start a hybrid session with 100-word chunks:
+
+```powershell
+python -m src.videomind `
+  --transcript-input transcript.json `
+  --retriever hybrid `
+  --semantic-min-score 0.55 `
+  --chunk-words 100 `
+  --interactive
+```
+
+Use `:help` to list the interactive commands, and use `:quit` or `:exit` to
+finish successfully. An initial positional question may be supplied before
+`--interactive`; VideoMind processes it before reading more questions.
+
+Questions are independent. Interactive mode does not retain conversation
+memory, is not a chatbot, and returns timestamped transcript evidence rather
+than generated answers. The transcript, embedding model, chunk embeddings, and
+retrieval index remain process-local and are discarded when the session exits.
+One session searches one transcript.
+
 ## Transcription
 
 Transcribe one local video and write timestamped segments and chunks:
@@ -198,7 +234,8 @@ python -m src.retrieval.local_retriever --help
 - Hybrid retrieval is rank fusion rather than reasoning or reranking.
 - The optional embedding model requires a local download, memory, and CPU time.
 - The tokenizer is intentionally ASCII-focused.
-- Each CLI invocation searches one transcript and builds an in-memory index.
+- Each CLI invocation searches one transcript; interactive mode reuses its
+  in-memory index across independent questions.
 - Transcript chunks and embeddings are process-local and are not persisted.
 - The unified command processes one video per invocation.
 - VideoMind returns ranked transcript evidence, not a generated answer.
