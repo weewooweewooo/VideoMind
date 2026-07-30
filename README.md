@@ -47,6 +47,32 @@ DEVICE=cpu
 The first use of a named Faster-Whisper model may download model files. Use a
 local model path with `--model` when an offline run is required.
 
+## Unified video query
+
+Transcribe and search one local video without writing an intermediate
+transcript:
+
+```powershell
+py -3.13 -m src.videomind `
+  data\example.mp4 `
+  "your question"
+```
+
+To search an existing transcript without invoking Faster-Whisper:
+
+```powershell
+py -3.13 -m src.videomind `
+  --transcript-input path\to\transcript.json `
+  "your question" `
+  --pretty
+```
+
+Use `--save-transcript path\to\transcript.json` in video mode when the complete
+transcription should be retained. Existing files are not overwritten.
+
+The transcription and retrieval commands below remain available as lower-level
+tools.
+
 ## Transcription
 
 Transcribe one local video and write timestamped segments and chunks:
@@ -85,9 +111,5 @@ python -m src.retrieval.local_retriever --help
 - TF-IDF retrieval is lexical rather than semantic.
 - The tokenizer is intentionally ASCII-focused.
 - Each CLI invocation searches one transcript and builds an in-memory index.
-- Transcription and retrieval are currently separate commands.
-
-## Next planned milestone
-
-Add a small `src/videomind.py` orchestration CLI that runs transcription and
-retrieval as one local workflow.
+- The unified command processes one video per invocation.
+- VideoMind returns ranked transcript evidence, not a generated answer.
