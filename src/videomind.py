@@ -4,35 +4,21 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import sys
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from src.ingestion.transcript_cache import (
-    TranscriptCacheIdentity,
-    build_cache_identity,
-    cache_entry_path,
-    load_cached_transcript,
-    prepare_cache_directory_for_write,
-    resolve_cache_directory,
-    store_cached_transcript,
-    validate_cache_directory,
-)
-from src.ingestion.transcriber import (
+from src.ingestion import (
     build_transcript_output,
-    resolve_beam_size,
+    ingest_video,
+    normalize_transcript_segments,
     resolve_chunk_overlap_words,
     resolve_chunk_words,
-    resolve_compute_type,
-    resolve_whisper_device,
-    resolve_whisper_model,
-    transcribe_to_memory,
 )
-from src.ingestion.transcript_chunks import normalize_transcript_segments
+from src.library import ingest_video_library
+from src.retrieval import build_retriever, resolve_retrieval_options
 from src.retrieval.local_retriever import (
-    LocalTfidfRetriever,
     TranscriptDocument,
     format_search_output,
     validate_transcript_document,
@@ -49,64 +35,6 @@ def _validated_top_k(top_k: int) -> int:
     if isinstance(top_k, bool) or not isinstance(top_k, int) or top_k <= 0:
         raise ValueError("top_k must be a positive integer")
     return top_k
-
-
-def _validated_min_score(min_score: float) -> float:
-    try:
-        score = float(min_score)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("min_score must be a finite number") from exc
-    if not math.isfinite(score) or score < 0 or score > 1:
-        raise ValueError("min_score must be between zero and one")
-    return score
-
-
-def _resolve_retrieval_options(
-    retriever: str,
-    embedding_model: str | None,
-    min_score: float | None,
-    semantic_min_score: float | None,
-) -> tuple[str, float]:
-    if not isinstance(retriever, str):
-        raise ValueError("retriever must be one of: tfidf, semantic, hybrid")
-    backend = retriever.strip().lower()
-    if backend not in {"tfidf", "semantic", "hybrid"}:
-        raise ValueError("retriever must be one of: tfidf, semantic, hybrid")
-    if backend == "tfidf":
-        if embedding_model is not None:
-            raise ValueError(
-                "embedding_model is only valid with semantic or hybrid retrieval"
-            )
-        if semantic_min_score is not None:
-            raise ValueError(
-                "semantic_min_score is only valid with semantic or hybrid retrieval"
-            )
-        threshold = 0.0 if min_score is None else min_score
-    else:
-        from src.retrieval.semantic_retriever import DEFAULT_SEMANTIC_MIN_SCORE
-
-        if min_score is not None and semantic_min_score is not None:
-            raise ValueError(
-                "Use either min_score or semantic_min_score, not both"
-            )
-        configured_threshold = (
-            semantic_min_score if semantic_min_score is not None else min_score
-        )
-        threshold = (
-            DEFAULT_SEMANTIC_MIN_SCORE
-            if configured_threshold is None
-            else configured_threshold
-        )
-    return backend, _validated_min_score(threshold)
-
-
-def _validated_video_path(video_path: str | Path) -> Path:
-    if not isinstance(video_path, (str, Path)) or not str(video_path).strip():
-        raise ValueError("A local video path is required")
-    path = Path(video_path).expanduser()
-    if not path.exists() or not path.is_file():
-        raise FileNotFoundError(f"Video file not found: {path}")
-    return path
 
 
 def _validated_transcript_mapping(
@@ -153,37 +81,19 @@ class VideoMindSession:
         document, segment_count = _validated_transcript_mapping(
             session_transcript
         )
-        backend, default_min_score = _resolve_retrieval_options(
-            retriever,
-            embedding_model,
-            min_score,
-            semantic_min_score,
+        retrieval_backend = build_retriever(
+            document,
+            backend=retriever,
+            embedding_model=embedding_model,
+            device=device,
+            min_score=min_score,
+            semantic_min_score=semantic_min_score,
         )
-
-        if backend == "tfidf":
-            retrieval_backend = LocalTfidfRetriever(document)
-        elif backend == "semantic":
-            from src.retrieval.semantic_retriever import SemanticRetriever
-
-            retrieval_backend = SemanticRetriever(
-                document,
-                model_name=embedding_model,
-                device=device,
-            )
-        else:
-            from src.retrieval.hybrid_retriever import HybridRetriever
-
-            retrieval_backend = HybridRetriever(
-                document,
-                model_name=embedding_model,
-                device=device,
-            )
 
         self.transcript = session_transcript
         self.document = document
         self.segment_count = segment_count
-        self.backend = backend
-        self.default_min_score = default_min_score
+        self.backend = retrieval_backend.backend
         self.retriever = retrieval_backend
 
     @property
@@ -201,37 +111,12 @@ class VideoMindSession:
     ) -> dict[str, Any]:
         """Search the reusable index and return the existing unified schema."""
         normalized_question = _validated_question(question)
-        resolved_top_k = _validated_top_k(top_k)
-        resolved_min_score = (
-            self.default_min_score
-            if min_score is None
-            else _validated_min_score(min_score)
+        results = self.retriever.search(
+            normalized_question,
+            top_k=top_k,
+            min_score=min_score,
+            include_zero_scores=include_zero_scores,
         )
-
-        if self.backend == "tfidf":
-            results = self.retriever.search(
-                normalized_question,
-                top_k=resolved_top_k,
-                min_score=resolved_min_score,
-                include_zero_scores=include_zero_scores,
-            )
-        elif self.backend == "semantic":
-            results = self.retriever.search(
-                normalized_question,
-                top_k=resolved_top_k,
-                min_score=resolved_min_score,
-                include_zero_scores=include_zero_scores,
-            )
-        else:
-            if include_zero_scores:
-                raise ValueError(
-                    "include_zero_scores is not supported with hybrid retrieval"
-                )
-            results = self.retriever.search(
-                normalized_question,
-                top_k=resolved_top_k,
-                semantic_min_score=resolved_min_score,
-            )
 
         retrieval_output = format_search_output(
             self.retriever,
@@ -248,9 +133,9 @@ class VideoMindSession:
             "result_count": retrieval_output["result_count"],
             "results": retrieval_output["results"],
         }
-        if self.backend in {"semantic", "hybrid"}:
-            output["embedding_model"] = self.retriever.model_name
-        if self.backend == "hybrid":
+        if self.retriever.embedding_model is not None:
+            output["embedding_model"] = self.retriever.embedding_model
+        if self.retriever.rrf_k is not None:
             output["rrf_k"] = self.retriever.rrf_k
         return output
 
@@ -287,123 +172,6 @@ def query_transcript(
     )
 
 
-def _transcribe_video(
-    video_path: str | Path,
-    *,
-    model: str | None,
-    device: str,
-    compute_type: str,
-    beam_size: int | None,
-    language: str | None,
-    chunk_words: int | None,
-    chunk_overlap_words: int,
-    cache_dir: str | Path | None,
-    use_cache: bool,
-    refresh_cache: bool,
-    cache_identity: TranscriptCacheIdentity | None = None,
-    status_callback: Callable[[str], None] | None = None,
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    path = _validated_video_path(video_path)
-    if refresh_cache and not use_cache:
-        raise ValueError("refresh_cache requires use_cache")
-
-    resolved_model = resolve_whisper_model(model)
-    resolved_device = resolve_whisper_device(device)
-    resolved_compute_type = resolve_compute_type(compute_type)
-    resolved_beam_size = resolve_beam_size(beam_size)
-    resolved_language = language.strip() if language else None
-    resolved_chunk_words = resolve_chunk_words(chunk_words)
-    resolved_chunk_overlap = resolve_chunk_overlap_words(
-        chunk_overlap_words,
-        chunk_words=resolved_chunk_words,
-    )
-
-    def report(message: str) -> None:
-        if status_callback is not None:
-            status_callback(message)
-
-    transcript: dict[str, Any] | None = None
-    cache_metadata: dict[str, Any] = {
-        "enabled": False,
-        "status": "disabled",
-    }
-    identity = None
-    resolved_cache_dir = None
-    if use_cache:
-        resolved_cache_dir = resolve_cache_directory(cache_dir)
-        validate_cache_directory(resolved_cache_dir)
-        identity = cache_identity
-        if identity is None:
-            identity = build_cache_identity(
-                path,
-                model=resolved_model,
-                language=resolved_language,
-                beam_size=resolved_beam_size,
-                device=resolved_device,
-                compute_type=resolved_compute_type,
-            )
-        destination = cache_entry_path(resolved_cache_dir, identity)
-        cache_status = "refreshed" if refresh_cache else "miss"
-        cache_metadata = {
-            "enabled": True,
-            "status": cache_status,
-            "path": str(destination),
-        }
-        if not refresh_cache:
-            transcript = load_cached_transcript(resolved_cache_dir, identity)
-            if transcript is not None:
-                transcript["video"] = str(path)
-                cache_metadata["status"] = "hit"
-                report("VideoMind transcript cache hit.")
-
-    if transcript is None:
-        if use_cache:
-            if resolved_cache_dir is None:
-                raise RuntimeError("Transcript cache initialization failed")
-            prepare_cache_directory_for_write(resolved_cache_dir)
-            if refresh_cache:
-                report(
-                    "VideoMind transcript cache refresh requested; "
-                    "transcribing video."
-                )
-            else:
-                report("VideoMind transcript cache miss; transcribing video.")
-        else:
-            report("VideoMind transcript cache disabled; transcribing video.")
-
-        transcript = transcribe_to_memory(
-            str(path),
-            video_name=str(path),
-            model_size=resolved_model,
-            device=resolved_device,
-            compute_type=resolved_compute_type,
-            beam_size=resolved_beam_size,
-            language=resolved_language,
-        )
-        if use_cache:
-            try:
-                if resolved_cache_dir is None or identity is None:
-                    raise RuntimeError("Transcript cache initialization failed")
-                store_cached_transcript(
-                    resolved_cache_dir,
-                    identity,
-                    transcript,
-                    {"source_video": str(path.resolve())},
-                    replace=refresh_cache,
-                )
-                if refresh_cache:
-                    report("VideoMind transcript cache refreshed.")
-            except OSError as exc:
-                report(f"VideoMind transcript cache write warning: {exc}")
-
-    output = build_transcript_output(
-        transcript,
-        chunk_words=resolved_chunk_words,
-        chunk_overlap_words=resolved_chunk_overlap,
-    )
-    return output, cache_metadata
-
-
 def _query_video_with_transcript(
     video_path: str | Path,
     question: str,
@@ -427,13 +195,13 @@ def _query_video_with_transcript(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     normalized_question = _validated_question(question)
     _validated_top_k(top_k)
-    _resolve_retrieval_options(
+    resolve_retrieval_options(
         retriever,
         embedding_model,
         min_score,
         semantic_min_score,
     )
-    transcript, cache_metadata = _transcribe_video(
+    transcript, cache_metadata = ingest_video(
         video_path,
         model=model,
         device=device,
@@ -504,111 +272,6 @@ def query_video(
         refresh_cache=refresh_cache,
     )
     return result
-
-
-def _initialize_video_library(
-    directory: str | Path,
-    *,
-    model: str | None,
-    device: str,
-    compute_type: str,
-    beam_size: int | None,
-    language: str | None,
-    chunk_words: int | None,
-    chunk_overlap_words: int,
-    retriever: str,
-    embedding_model: str | None,
-    min_score: float | None,
-    semantic_min_score: float | None,
-    cache_dir: str | Path | None,
-    use_cache: bool,
-    refresh_cache: bool,
-    status_callback: Callable[[str], None] | None = None,
-) -> tuple[Any, dict[str, Any]]:
-    """Load distinct videos once and build one combined retrieval index."""
-    from src.library import VideoLibrary, discover_video_files
-
-    resolved_model = resolve_whisper_model(model)
-    resolved_device = resolve_whisper_device(device)
-    resolved_compute_type = resolve_compute_type(compute_type)
-    resolved_beam_size = resolve_beam_size(beam_size)
-    resolved_language = language.strip() if language else None
-    paths = discover_video_files(directory)
-    transcripts = []
-    source_labels = []
-    seen_video_hashes: dict[str, Path] = {}
-    cache_summary = {
-        "enabled": use_cache,
-        "hits": 0,
-        "misses": 0,
-        "refreshed": 0,
-        "disabled": 0,
-    }
-
-    def report(message: str) -> None:
-        if status_callback is not None:
-            status_callback(message)
-
-    for path in paths:
-        identity = build_cache_identity(
-            path,
-            model=resolved_model,
-            language=resolved_language,
-            beam_size=resolved_beam_size,
-            device=resolved_device,
-            compute_type=resolved_compute_type,
-        )
-        duplicate_of = seen_video_hashes.get(identity.video_sha256)
-        if duplicate_of is not None:
-            report(
-                "VideoMind duplicate video content skipped: "
-                f"{path.name}; using {duplicate_of.name}."
-            )
-            continue
-        seen_video_hashes[identity.video_sha256] = path
-
-        transcript, cache_metadata = _transcribe_video(
-            path,
-            model=resolved_model,
-            device=resolved_device,
-            compute_type=resolved_compute_type,
-            beam_size=resolved_beam_size,
-            language=resolved_language,
-            chunk_words=chunk_words,
-            chunk_overlap_words=chunk_overlap_words,
-            cache_dir=cache_dir,
-            use_cache=use_cache,
-            refresh_cache=refresh_cache,
-            cache_identity=identity,
-            status_callback=(
-                lambda message, video_name=path.name: report(
-                    f"[{video_name}] {message}"
-                )
-            ),
-        )
-        transcript["video"] = path.name
-        transcripts.append(transcript)
-        source_labels.append(str(path))
-        status = str(cache_metadata["status"])
-        summary_field = {
-            "hit": "hits",
-            "miss": "misses",
-            "refreshed": "refreshed",
-            "disabled": "disabled",
-        }[status]
-        cache_summary[summary_field] += 1
-
-    library = VideoLibrary(
-        transcripts,
-        retriever=retriever,
-        embedding_model=embedding_model,
-        device=resolved_device,
-        min_score=min_score,
-        semantic_min_score=semantic_min_score,
-        source_labels=source_labels,
-        warning_callback=report,
-    )
-    return library, cache_summary
 
 
 def load_transcript_input(path: str | Path) -> dict[str, Any]:
@@ -944,7 +607,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             raise ValueError("--output and --save-transcript must use different paths")
 
         _validated_top_k(args.top_k)
-        selected_backend, _ = _resolve_retrieval_options(
+        selected_backend, _ = resolve_retrieval_options(
             args.retriever,
             args.embedding_model,
             args.min_score,
@@ -1008,7 +671,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
 
             if args.library is not None:
-                session, cache_summary = _initialize_video_library(
+                session, cache_summary = ingest_video_library(
                     args.library,
                     model=args.model,
                     device=args.device,
@@ -1072,7 +735,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             if args.question is None and not args.interactive:
                 raise ValueError("A question is required after the video path")
-            transcript, cache_metadata = _transcribe_video(
+            transcript, cache_metadata = ingest_video(
                 args.source,
                 model=args.model,
                 device=args.device,

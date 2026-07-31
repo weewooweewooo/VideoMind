@@ -9,14 +9,42 @@ retrieval backend.
 
 ```text
 local video
-  -> transcript cache lookup or Faster-Whisper transcription
-  -> timestamped transcript chunks
+  -> cached transcript or Faster-Whisper transcription
+  -> validated timestamped segments
+  -> chunks
   -> selected local retrieval backend
      |-> TF-IDF (default)
      |-> semantic embeddings (optional)
      `-> hybrid TF-IDF + semantic RRF (optional)
   -> ranked chunks with timestamps
 ```
+
+All video ingestion behavior lives in `src/ingestion.py`:
+
+```text
+video
+  -> cached transcript or transcription
+  -> validated timestamped segments
+  -> chunks
+```
+
+Application retrieval has one direct entry point:
+
+```text
+transcript chunks
+  -> build_retriever()
+     |-> TF-IDF
+     |-> semantic
+     `-> hybrid
+  -> search(question)
+  -> ranked timestamped evidence
+```
+
+The three retrieval algorithms remain separate, and their lower-level module
+CLIs remain available for diagnostics. `build_retriever()` selects and builds
+one reusable retriever per session or library. Semantic and hybrid selection
+loads FastEmbed lazily; importing retrieval or using TF-IDF does not require the
+optional semantic dependency.
 
 The transcription command produces JSON. The retrieval command reads that JSON
 directly. TF-IDF remains the default dependency-free backend. Optional semantic
@@ -308,7 +336,7 @@ vector service, cloud API, or persistent embedding index.
 Transcribe one local video and write timestamped segments and chunks:
 
 ```powershell
-python -m src.ingestion.transcriber data\video.mp4 --output transcript.json
+python -m src.ingestion data\video.mp4 --output transcript.json
 ```
 
 Useful options include `--model`, `--compute-type`, `--beam-size`, `--language`,
@@ -316,7 +344,7 @@ Useful options include `--model`, `--compute-type`, `--beam-size`, `--language`,
 command reference:
 
 ```powershell
-python -m src.ingestion.transcriber --help
+python -m src.ingestion --help
 ```
 
 ## Local retrieval

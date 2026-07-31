@@ -4,19 +4,21 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from src.ingestion.transcriber import (
+from src.ingestion import (
     build_transcript_output,
+    ingest_video,
+    normalize_transcript_segments,
     resolve_chunk_overlap_words,
     resolve_chunk_words,
+    resolve_whisper_device,
+    video_content_sha256,
 )
-from src.ingestion.transcript_chunks import normalize_transcript_segments
+from src.retrieval import build_retriever, resolve_retrieval_options
 from src.retrieval.local_retriever import (
-    LocalTfidfRetriever,
     TranscriptChunk,
     TranscriptDocument,
     format_search_output,
@@ -102,61 +104,6 @@ def _validated_question(question: str) -> str:
     return question.strip()
 
 
-def _validated_top_k(top_k: int) -> int:
-    if isinstance(top_k, bool) or not isinstance(top_k, int) or top_k <= 0:
-        raise ValueError("top_k must be a positive integer")
-    return top_k
-
-
-def _validated_min_score(min_score: float) -> float:
-    try:
-        score = float(min_score)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("min_score must be a finite number") from exc
-    if not math.isfinite(score) or score < 0 or score > 1:
-        raise ValueError("min_score must be between zero and one")
-    return score
-
-
-def _resolve_retrieval_options(
-    retriever: str,
-    embedding_model: str | None,
-    min_score: float | None,
-    semantic_min_score: float | None,
-) -> tuple[str, float]:
-    if not isinstance(retriever, str):
-        raise ValueError("retriever must be one of: tfidf, semantic, hybrid")
-    backend = retriever.strip().lower()
-    if backend not in {"tfidf", "semantic", "hybrid"}:
-        raise ValueError("retriever must be one of: tfidf, semantic, hybrid")
-    if backend == "tfidf":
-        if embedding_model is not None:
-            raise ValueError(
-                "embedding_model is only valid with semantic or hybrid retrieval"
-            )
-        if semantic_min_score is not None:
-            raise ValueError(
-                "semantic_min_score is only valid with semantic or hybrid retrieval"
-            )
-        threshold = 0.0 if min_score is None else min_score
-    else:
-        from src.retrieval.semantic_retriever import DEFAULT_SEMANTIC_MIN_SCORE
-
-        if min_score is not None and semantic_min_score is not None:
-            raise ValueError(
-                "Use either min_score or semantic_min_score, not both"
-            )
-        configured_threshold = (
-            semantic_min_score if semantic_min_score is not None else min_score
-        )
-        threshold = (
-            DEFAULT_SEMANTIC_MIN_SCORE
-            if configured_threshold is None
-            else configured_threshold
-        )
-    return backend, _validated_min_score(threshold)
-
-
 def _transcript_content_identity(transcript: Mapping[str, Any]) -> str:
     segments = normalize_transcript_segments(transcript.get("segments", []))
     canonical = json.dumps(
@@ -198,7 +145,7 @@ class VideoLibrary:
             chunk_overlap_words,
             chunk_words=resolved_chunk_words,
         )
-        backend, default_min_score = _resolve_retrieval_options(
+        backend, _ = resolve_retrieval_options(
             retriever,
             embedding_model,
             min_score,
@@ -265,27 +212,16 @@ class VideoLibrary:
             video="VideoMind library",
             chunks=tuple(global_chunks),
         )
-        if backend == "tfidf":
-            retrieval_backend = LocalTfidfRetriever(combined_document)
-        elif backend == "semantic":
-            from src.retrieval.semantic_retriever import SemanticRetriever
+        retrieval_backend = build_retriever(
+            combined_document,
+            backend=backend,
+            embedding_model=embedding_model,
+            device=device,
+            min_score=min_score,
+            semantic_min_score=semantic_min_score,
+        )
 
-            retrieval_backend = SemanticRetriever(
-                combined_document,
-                model_name=embedding_model,
-                device=device,
-            )
-        else:
-            from src.retrieval.hybrid_retriever import HybridRetriever
-
-            retrieval_backend = HybridRetriever(
-                combined_document,
-                model_name=embedding_model,
-                device=device,
-            )
-
-        self.backend = backend
-        self.default_min_score = default_min_score
+        self.backend = retrieval_backend.backend
         self.retriever = retrieval_backend
         self.video_count = len(accepted_videos)
         self.chunk_count = len(global_chunks)
@@ -302,30 +238,12 @@ class VideoLibrary:
     ) -> dict[str, Any]:
         """Search the combined index and return cross-video evidence."""
         normalized_question = _validated_question(question)
-        resolved_top_k = _validated_top_k(top_k)
-        resolved_min_score = (
-            self.default_min_score
-            if min_score is None
-            else _validated_min_score(min_score)
+        results = self.retriever.search(
+            normalized_question,
+            top_k=top_k,
+            min_score=min_score,
+            include_zero_scores=include_zero_scores,
         )
-
-        if self.backend in {"tfidf", "semantic"}:
-            results = self.retriever.search(
-                normalized_question,
-                top_k=resolved_top_k,
-                min_score=resolved_min_score,
-                include_zero_scores=include_zero_scores,
-            )
-        else:
-            if include_zero_scores:
-                raise ValueError(
-                    "include_zero_scores is not supported with hybrid retrieval"
-                )
-            results = self.retriever.search(
-                normalized_question,
-                top_k=resolved_top_k,
-                semantic_min_score=resolved_min_score,
-            )
 
         formatted = format_search_output(
             self.retriever,
@@ -363,8 +281,99 @@ class VideoLibrary:
             "result_count": len(library_results),
             "results": library_results,
         }
-        if self.backend in {"semantic", "hybrid"}:
-            output["embedding_model"] = self.retriever.model_name
-        if self.backend == "hybrid":
+        if self.retriever.embedding_model is not None:
+            output["embedding_model"] = self.retriever.embedding_model
+        if self.retriever.rrf_k is not None:
             output["rrf_k"] = self.retriever.rrf_k
         return output
+
+
+def ingest_video_library(
+    directory: str | Path,
+    *,
+    model: str | None,
+    device: str,
+    compute_type: str,
+    beam_size: int | None,
+    language: str | None,
+    chunk_words: int | None,
+    chunk_overlap_words: int,
+    retriever: str,
+    embedding_model: str | None,
+    min_score: float | None,
+    semantic_min_score: float | None,
+    cache_dir: str | Path | None,
+    use_cache: bool,
+    refresh_cache: bool,
+    status_callback: Callable[[str], None] | None = None,
+) -> tuple[VideoLibrary, dict[str, Any]]:
+    """Ingest distinct videos once and build one combined retrieval index."""
+    resolved_device = resolve_whisper_device(device)
+    paths = discover_video_files(directory)
+    transcripts = []
+    source_labels = []
+    seen_video_hashes: dict[str, Path] = {}
+    cache_summary = {
+        "enabled": use_cache,
+        "hits": 0,
+        "misses": 0,
+        "refreshed": 0,
+        "disabled": 0,
+    }
+
+    def report(message: str) -> None:
+        if status_callback is not None:
+            status_callback(message)
+
+    for path in paths:
+        video_sha256 = video_content_sha256(path)
+        duplicate_of = seen_video_hashes.get(video_sha256)
+        if duplicate_of is not None:
+            report(
+                "VideoMind duplicate video content skipped: "
+                f"{path.name}; using {duplicate_of.name}."
+            )
+            continue
+        seen_video_hashes[video_sha256] = path
+
+        transcript, cache_metadata = ingest_video(
+            path,
+            model=model,
+            device=resolved_device,
+            compute_type=compute_type,
+            beam_size=beam_size,
+            language=language,
+            chunk_words=chunk_words,
+            chunk_overlap_words=chunk_overlap_words,
+            cache_dir=cache_dir,
+            use_cache=use_cache,
+            refresh_cache=refresh_cache,
+            status_callback=(
+                lambda message, video_name=path.name: report(
+                    f"[{video_name}] {message}"
+                )
+            ),
+        )
+        transcript["video"] = path.name
+        transcripts.append(transcript)
+        source_labels.append(str(path))
+        status = str(cache_metadata["status"])
+        summary_field = {
+            "hit": "hits",
+            "miss": "misses",
+            "refreshed": "refreshed",
+            "disabled": "disabled",
+        }[status]
+        cache_summary[summary_field] += 1
+
+    library = VideoLibrary(
+        transcripts,
+        retriever=retriever,
+        embedding_model=embedding_model,
+        device=resolved_device,
+        min_score=min_score,
+        semantic_min_score=semantic_min_score,
+        source_labels=source_labels,
+        warning_callback=report,
+    )
+    return library, cache_summary
