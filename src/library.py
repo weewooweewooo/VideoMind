@@ -17,11 +17,12 @@ from src.ingestion import (
     resolve_whisper_device,
     video_content_sha256,
 )
-from src.retrieval import build_retriever, resolve_retrieval_options
-from src.retrieval.local_retriever import (
+from src.retrieval import (
     TranscriptChunk,
     TranscriptDocument,
+    build_retriever,
     format_search_output,
+    resolve_retrieval_options,
     validate_transcript_document,
 )
 

@@ -40,10 +40,10 @@ transcript chunks
   -> ranked timestamped evidence
 ```
 
-The three retrieval algorithms remain separate, and their lower-level module
-CLIs remain available for diagnostics. `build_retriever()` selects and builds
-one reusable retriever per session or library. Semantic and hybrid selection
-loads FastEmbed lazily; importing retrieval or using TF-IDF does not require the
+The three retrieval algorithms are distinct sections in `src/retrieval.py`.
+`build_retriever()` is their single application entry point and builds one
+reusable retriever per session or library. Semantic and hybrid selection loads
+FastEmbed lazily; importing retrieval or using TF-IDF does not require the
 optional semantic dependency.
 
 The transcription command produces JSON. The retrieval command reads that JSON
@@ -102,8 +102,8 @@ py -3.13 -m src.videomind `
 Use `--save-transcript path\to\transcript.json` in video mode when the complete
 transcription should be retained. Existing files are not overwritten.
 
-The transcription and retrieval commands below remain available as lower-level
-tools.
+The transcription command below remains available as a lower-level tool.
+Retrieval uses the unified VideoMind CLI.
 
 ## Persistent transcript cache
 
@@ -347,21 +347,19 @@ command reference:
 python -m src.ingestion --help
 ```
 
-## Local retrieval
+## Direct transcript retrieval
 
 Search a transcript:
 
 ```powershell
-python -m src.retrieval.local_retriever transcript.json "machine learning"
+python -m src.videomind `
+  --transcript-input transcript.json `
+  "machine learning"
 ```
 
 The command returns ranked chunks containing their original text, start and end
-timestamps, chunk IDs, and cosine scores. Use `--top-k` and `--min-score` to
-control result selection.
-
-```powershell
-python -m src.retrieval.local_retriever --help
-```
+timestamps, chunk IDs, and scores. Use `--retriever`, `--top-k`, and the
+backend-appropriate score threshold to control retrieval.
 
 ## Current limitations
 

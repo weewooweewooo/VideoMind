@@ -17,10 +17,11 @@ from src.ingestion import (
     resolve_chunk_words,
 )
 from src.library import ingest_video_library
-from src.retrieval import build_retriever, resolve_retrieval_options
-from src.retrieval.local_retriever import (
+from src.retrieval import (
     TranscriptDocument,
+    build_retriever,
     format_search_output,
+    resolve_retrieval_options,
     validate_transcript_document,
 )
 
