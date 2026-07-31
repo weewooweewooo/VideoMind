@@ -1,3 +1,0 @@
-# Optional local semantic retrieval dependency.
-# Install requirements.txt first for the complete VideoMind runtime.
-fastembed==0.8.0

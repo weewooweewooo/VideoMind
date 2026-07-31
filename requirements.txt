@@ -2,3 +2,4 @@
 # PyAV, CTranslate2, and other decoding/inference requirements are installed
 # transitively by faster-whisper.
 faster-whisper>=1.0
+rank-bm25>=0.2.2
