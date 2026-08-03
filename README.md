@@ -20,12 +20,10 @@ Python 3.11 or newer is recommended.
 py -m venv venv
 .\venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-Copy-Item .env.example .env
 ```
 
 `requirements.txt` provides Faster-Whisper transcription and BM25 retrieval.
-The first use of a named Faster-Whisper model may download model files; use a
-local model path when an offline run is needed.
+The first use of the fixed Faster-Whisper `base` model may download model files.
 
 ## Ask one question
 
@@ -72,48 +70,11 @@ with the former cosine scores.
 
 ## Transcript cache
 
-The transcript cache is keyed by the video contents and transcription
-configuration. It supports cache hits, misses, refreshes, disabled operation,
-configuration changes, and corrupt-entry recovery.
-
-```powershell
-# Use a custom cache directory.
-python -m src.videomind .\data\WjNlodSXlmI.mp4 "What is discussed?" `
-  --cache-dir "D:\VideoMindCache"
-
-# Retranscribe and replace the matching entry.
-python -m src.videomind .\data\WjNlodSXlmI.mp4 "What is discussed?" `
-  --refresh-cache
-
-# Disable cache reads and writes.
-python -m src.videomind .\data\WjNlodSXlmI.mp4 "What is discussed?" `
-  --no-cache
-```
-
-`--cache-dir` takes precedence over `VIDEOMIND_CACHE_DIR`. By default, Windows
-uses `%LOCALAPPDATA%\VideoMind\cache`; other platforms use
+The inspectable JSON transcript cache is keyed by the schema version, video
+content SHA-256, and fixed Whisper model identifier. Missing or corrupt entries
+are treated as cache misses and rewritten atomically after transcription.
+Windows uses `%LOCALAPPDATA%\VideoMind\cache`; other platforms use
 `~/.cache/videomind`.
-
-## Diagnostic transcript paths
-
-`--transcript-input` loads a saved transcript without running transcription:
-
-```powershell
-python -m src.videomind `
-  --transcript-input .\transcript.json `
-  "What is discussed?" `
-  --pretty
-```
-
-`--save-transcript` saves the prepared transcript without changing the normal
-single-video flow:
-
-```powershell
-python -m src.videomind `
-  .\data\WjNlodSXlmI.mp4 `
-  "What is discussed?" `
-  --save-transcript .\transcript.json
-```
 
 ## Source structure
 

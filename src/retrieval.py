@@ -2,21 +2,15 @@
 
 from __future__ import annotations
 
-# Standard-library imports
-
+import math
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from src.ingestion import _normalize_transcript_segments
-
-
-# Tokenization and constants
 
 _TOKEN_PATTERN = re.compile(r"[a-z0-9]+(?:'[a-z0-9]+)?", re.IGNORECASE)
 _DEFAULT_TOP_K = 5
-# Generic function words plus "work", a non-discriminative process verb.
 _STOPWORDS = frozenset(
     (
         "a an and are as at be been being but by can could did do does doing "
@@ -29,62 +23,12 @@ _STOPWORDS = frozenset(
 )
 
 
-# Internal transcript contracts and validation
-
-
 @dataclass(frozen=True, slots=True)
 class _TranscriptChunk:
-    """One validated timestamped chunk from the transcript JSON."""
-
     chunk_id: int
     start: float
     end: float
     text: str
-
-
-@dataclass(frozen=True, slots=True)
-class _TranscriptDocument:
-    """Validated transcript metadata and chunks."""
-
-    video: str
-    chunks: tuple[_TranscriptChunk, ...]
-
-
-def _validate_transcript_document(
-    document: Mapping[str, Any],
-) -> _TranscriptDocument:
-    """Validate the transcript JSON contract without altering timestamps or text."""
-    if not isinstance(document, Mapping):
-        raise ValueError("Transcript JSON must contain an object")
-
-    raw_video = document.get("video")
-    if not isinstance(raw_video, str) or not raw_video.strip():
-        raise ValueError("Transcript JSON must contain a nonempty video field")
-
-    raw_chunks = document.get("chunks")
-    if not isinstance(raw_chunks, list):
-        raise ValueError("Transcript JSON chunks must be a list")
-    if not raw_chunks:
-        raise ValueError("Transcript JSON contains no chunks")
-
-    for index, chunk in enumerate(raw_chunks):
-        if not isinstance(chunk, Mapping):
-            raise ValueError(f"Transcript chunk {index} must be an object")
-        text = chunk.get("text")
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError(f"Transcript chunk {index} has empty text")
-
-    normalized_chunks = _normalize_transcript_segments(raw_chunks)
-    chunks = tuple(
-        _TranscriptChunk(
-            chunk_id=index,
-            start=float(normalized["start"]),
-            end=float(normalized["end"]),
-            text=str(raw_chunks[index]["text"]),
-        )
-        for index, normalized in enumerate(normalized_chunks)
-    )
-    return _TranscriptDocument(video=raw_video.strip(), chunks=chunks)
 
 
 def _validated_question(question: str) -> str:
@@ -93,11 +37,7 @@ def _validated_question(question: str) -> str:
     return question.strip()
 
 
-# Shared lexical tokenization
-
-
 def _tokenize(text: str) -> list[str]:
-    """Return deterministic lowercase word tokens without generic stopwords."""
     return [
         token
         for match in _TOKEN_PATTERN.finditer(text)
@@ -105,63 +45,41 @@ def _tokenize(text: str) -> list[str]:
     ]
 
 
-# Reusable BM25 retriever
-
-
 class _Bm25Retriever:
     """Build one in-process BM25 index and reuse it across questions."""
 
-    def __init__(self, document: _TranscriptDocument) -> None:
-        if not document.chunks:
-            raise ValueError("Transcript document contains no chunks")
-
-        self._tokenized_chunks: list[list[str]] = []
-        for chunk in document.chunks:
-            tokens = _tokenize(chunk.text)
+    def __init__(self, video: str, chunks: tuple[_TranscriptChunk, ...]) -> None:
+        self.video = video
+        self._chunks = chunks
+        tokenized_chunks = [_tokenize(chunk.text) for chunk in chunks]
+        for chunk, tokens in zip(chunks, tokenized_chunks):
             if not tokens:
                 raise ValueError(
                     f"Transcript chunk {chunk.chunk_id} contains no usable tokens"
                 )
-            self._tokenized_chunks.append(tokens)
-
-        self.document = document
         self._vocabulary = frozenset(
-            token
-            for tokens in self._tokenized_chunks
-            for token in tokens
+            token for tokens in tokenized_chunks for token in tokens
         )
 
-        # Keep lightweight module imports independent of optional inference
-        # dependencies and rank-bm25's transitive NumPy dependency.
         from rank_bm25 import BM25Okapi
 
-        self._index = BM25Okapi(self._tokenized_chunks)
+        self._index = BM25Okapi(tokenized_chunks)
 
     @property
     def chunk_count(self) -> int:
-        """Return the number of indexed transcript chunks."""
-        return len(self.document.chunks)
+        return len(self._chunks)
 
     def search(self, question: str) -> list[dict[str, Any]]:
-        """Rank transcript evidence by raw BM25 score, where higher is stronger."""
-        normalized_question = _validated_question(question)
-        query_tokens = _tokenize(normalized_question)
-        if not query_tokens:
+        """Return up to five deterministic positive-score BM25 matches."""
+        query_tokens = _tokenize(_validated_question(question))
+        if not query_tokens or self._vocabulary.isdisjoint(query_tokens):
             return []
 
-        if self._vocabulary.isdisjoint(query_tokens):
-            return []
-
-        candidates: list[tuple[float, _TranscriptChunk]] = []
-        for score, chunk in zip(
-            self._index.get_scores(query_tokens),
-            self.document.chunks,
-        ):
-            raw_score = float(score)
-            if raw_score <= 0.0:
-                continue
-            candidates.append((raw_score, chunk))
-
+        candidates = [
+            (float(score), chunk)
+            for score, chunk in zip(self._index.get_scores(query_tokens), self._chunks)
+            if float(score) > 0.0
+        ]
         candidates.sort(key=lambda item: (-item[0], item[1].chunk_id))
         return [
             {
@@ -173,17 +91,46 @@ class _Bm25Retriever:
                 "score": score,
             }
             for rank, (score, chunk) in enumerate(
-                candidates[:_DEFAULT_TOP_K],
-                start=1,
+                candidates[:_DEFAULT_TOP_K], start=1
             )
         ]
 
 
-# Public retrieval entry point
+def build_retriever(transcript: Mapping[str, Any]) -> _Bm25Retriever:
+    """Validate prepared chunks and build one reusable BM25 index."""
+    if not isinstance(transcript, Mapping):
+        raise ValueError("Transcript must be an object")
+    video = transcript.get("video")
+    if not isinstance(video, str) or not video.strip():
+        raise ValueError("Transcript must contain a nonempty video field")
+    raw_chunks = transcript.get("chunks")
+    if not isinstance(raw_chunks, list) or not raw_chunks:
+        raise ValueError("Transcript must contain nonempty chunks")
 
+    chunks: list[_TranscriptChunk] = []
+    previous_start: float | None = None
+    previous_end: float | None = None
+    for chunk_id, raw_chunk in enumerate(raw_chunks):
+        if not isinstance(raw_chunk, Mapping):
+            raise ValueError(f"Transcript chunk {chunk_id} must be an object")
+        text = raw_chunk.get("text")
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError(f"Transcript chunk {chunk_id} has empty text")
+        try:
+            start = float(raw_chunk.get("start"))
+            end = float(raw_chunk.get("end"))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Transcript chunk {chunk_id} has invalid timestamps"
+            ) from exc
+        if not math.isfinite(start) or not math.isfinite(end) or start < 0 or end <= start:
+            raise ValueError(f"Transcript chunk {chunk_id} has invalid timestamps")
+        if previous_start is not None and start < previous_start:
+            raise ValueError(f"Transcript chunk {chunk_id} is out of timestamp order")
+        if previous_end is not None and end < previous_end:
+            raise ValueError(f"Transcript chunk {chunk_id} ends out of timestamp order")
+        chunks.append(_TranscriptChunk(chunk_id, start, end, text.strip()))
+        previous_start = start
+        previous_end = end
 
-def build_retriever(
-    transcript: Mapping[str, Any],
-) -> _Bm25Retriever:
-    """Build one reusable BM25 index for a prepared transcript."""
-    return _Bm25Retriever(_validate_transcript_document(transcript))
+    return _Bm25Retriever(video.strip(), tuple(chunks))
