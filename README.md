@@ -53,33 +53,41 @@ independent question. Use `:help` for interactive commands and `:quit` or
 
 ```text
 validated transcript chunks
-  -> tokenize and remove generic stopwords
+  -> shared lowercase tokenization
+  -> conservative English morphological normalization
+  -> corpus-aware compound splitting
+  -> remove generic stopwords
   -> BM25 index
   -> meaningful-vocabulary-overlap check
   -> BM25 scores
   -> deterministic ranked evidence
 ```
 
-BM25 is a keyword-based information-retrieval technique, not an embedding model
-or LLM. It generally ranks lexical matches better than basic term-frequency
-weighting, but it does not understand synonyms and strong paraphrases may fail.
-Unrelated queries with no meaningful vocabulary overlap return no evidence.
-Higher scores mean stronger lexical matches; they are raw BM25 ranking values,
-not confidence, probability, or percentages, and are not directly comparable
-with the former cosine scores.
+Chunks and questions use the same normalization pipeline. BM25 remains a
+keyword-based information-retrieval technique, not an embedding model or LLM.
+It does not provide semantic understanding: speaker intent, main-topic
+inference, and general paraphrases may still fail. Unrelated queries with no
+meaningful vocabulary overlap return no evidence. Higher scores mean stronger
+lexical matches; they are raw BM25 ranking values, not confidence, probability,
+or percentages, and are not directly comparable with the former cosine scores.
 
 ## Transcript cache
 
-The inspectable JSON transcript cache is keyed by the schema version, video
-content SHA-256, and fixed Whisper model identifier. Missing or corrupt entries
-are treated as cache misses and rewritten atomically after transcription.
-Windows uses `%LOCALAPPDATA%\VideoMind\cache`; other platforms use
+The inspectable JSON transcript cache uses one stable file per resolved video
+path. The file stores exactly five top-level fields: `source`, `profile`,
+`language`, `duration`, and `segments`. The source field contains the video size
+and modification timestamp, while the profile records the fixed transcription
+configuration. When the source or transcription profile changes, VideoMind
+retranscribes and atomically replaces the same cache file. The source fingerprint
+is intended for local cache invalidation, not cryptographic content-integrity
+verification. Windows uses `%LOCALAPPDATA%\VideoMind\cache`; other platforms use
 `~/.cache/videomind`.
 
 ## Source structure
 
 ```text
 src/
+|-- config.py
 |-- ingestion.py
 |-- retrieval.py
 `-- videomind.py

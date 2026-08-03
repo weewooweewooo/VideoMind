@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Any
 
 from src.config import (
-    CACHE_SCHEMA_VERSION,
     TRANSCRIPT_CHUNK_WORDS,
     WHISPER_BEAM_SIZE,
     WHISPER_COMPUTE_TYPE,
@@ -42,19 +41,18 @@ def _normalize_segments(segments: Iterable[Any]) -> list[dict[str, str | float]]
             start = float(raw_start)
             end = float(raw_end)
         except (TypeError, ValueError) as exc:
-            raise ValueError(
-                f"Transcript segment {index} has non-numeric timestamps"
-            ) from exc
-        if not math.isfinite(start) or not math.isfinite(end):
-            raise ValueError(f"Transcript segment {index} has non-finite timestamps")
-        if start < 0:
-            raise ValueError(f"Transcript segment {index} starts before zero")
-        if end <= start:
-            raise ValueError(f"Transcript segment {index} must end after it starts")
-        if previous_start is not None and start < previous_start:
-            raise ValueError(f"Transcript segment {index} is out of timestamp order")
-        if previous_end is not None and end < previous_end:
-            raise ValueError(f"Transcript segment {index} ends out of timestamp order")
+            raise ValueError(f"Invalid transcript segment at index {index}") from exc
+        if (
+            not math.isfinite(start)
+            or not math.isfinite(end)
+            or start < 0
+            or end <= start
+        ):
+            raise ValueError(f"Invalid transcript segment at index {index}")
+        if previous_start is not None and previous_end is not None and (
+            start < previous_start or end < previous_end
+        ):
+            raise ValueError(f"Transcript segments are out of order at index {index}")
 
         normalized.append({"start": start, "end": end, "text": text})
         previous_start, previous_end = start, end
@@ -88,11 +86,6 @@ def _build_chunks(segments: list[dict[str, str | float]]) -> list[dict[str, Any]
         current.append(segment)
         current_words += segment_words
     flush()
-    for chunk, next_chunk in zip(chunks, chunks[1:]):
-        if chunk["end"] > next_chunk["start"]:
-            if next_chunk["start"] <= chunk["start"]:
-                raise ValueError("Transcript cannot form non-overlapping chunks")
-            chunk["end"] = float(next_chunk["start"])
     return chunks
 
 
@@ -126,13 +119,9 @@ def _transcribe_video(video_path: Path) -> dict[str, Any]:
 
 
 def _cache_path_for(video_path: Path) -> Path:
-    """Return a local cache identity, not a content-integrity hash."""
-    stat = video_path.stat()
-    identity = (
-        f"{video_path.resolve()}|{stat.st_size}|{stat.st_mtime_ns}|"
-        f"{CACHE_SCHEMA_VERSION}|{WHISPER_MODEL}"
-    )
-    cache_key = hashlib.sha256(identity.encode("utf-8")).hexdigest()
+    """Return the stable cache file for one resolved video path."""
+    resolved_path = os.path.normcase(str(video_path.resolve()))
+    cache_key = hashlib.sha256(resolved_path.encode("utf-8")).hexdigest()
 
     if os.name == "nt":
         cache_dir = (
@@ -144,46 +133,58 @@ def _cache_path_for(video_path: Path) -> Path:
     return cache_dir / f"{cache_key}.json"
 
 
-def _load_cache(cache_path: Path) -> dict[str, Any] | None:
+def _load_cache(
+    cache_path: Path,
+    source: Mapping[str, Any],
+    profile: Mapping[str, Any],
+) -> dict[str, Any] | None:
     """Return a compatible normalized transcript or treat the entry as a miss."""
     if not cache_path.is_file():
         return None
     try:
         data = json.loads(cache_path.read_text(encoding="utf-8"))
-        if not isinstance(data, Mapping):
-            raise ValueError("Cache entry must be an object")
-        if data.get("schema_version") != CACHE_SCHEMA_VERSION or (
-            data.get("model") != WHISPER_MODEL
-        ):
-            raise ValueError("Cache identity mismatch")
-        transcript = data.get("transcript")
-        if not isinstance(transcript, Mapping):
-            raise ValueError("Cached transcript must be an object")
-        language = transcript.get("language")
-        if language is not None and (not isinstance(language, str) or not language.strip()):
-            raise ValueError("Cached language is invalid")
-        duration_value = transcript.get("duration")
-        if isinstance(duration_value, bool):
-            raise ValueError("Cached duration is invalid")
-        duration = float(duration_value)
-        if not math.isfinite(duration) or duration <= 0:
-            raise ValueError("Cached duration is invalid")
-        segments = transcript.get("segments")
-        if not isinstance(segments, list) or not segments:
-            raise ValueError("Cached segments must be a nonempty list")
-        return {"language": language, "duration": duration,
-                "segments": _normalize_segments(segments)}
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError):
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
 
+    if not isinstance(data, Mapping):
+        return None
+    if data.get("source") != source:
+        return None
+    if data.get("profile") != profile:
+        return None
+    language = data.get("language")
+    if language is not None and (not isinstance(language, str) or not language.strip()):
+        return None
+    duration_value = data.get("duration")
+    if isinstance(duration_value, bool):
+        return None
+    raw_segments = data.get("segments")
+    if not isinstance(raw_segments, list) or not raw_segments:
+        return None
+    try:
+        duration = float(duration_value)
+        segments = _normalize_segments(raw_segments)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(duration) or duration <= 0:
+        return None
+    return {"language": language, "duration": duration, "segments": segments}
 
-def _save_cache(cache_path: Path, transcript: Mapping[str, Any]) -> None:
+
+def _save_cache(
+    cache_path: Path,
+    source: Mapping[str, Any],
+    profile: Mapping[str, Any],
+    transcript: Mapping[str, Any],
+) -> None:
     """Atomically write one inspectable transcript cache entry."""
     cache_path.parent.mkdir(parents=True, exist_ok=True)
-    entry = {
-        "schema_version": CACHE_SCHEMA_VERSION,
-        "model": WHISPER_MODEL,
-        "transcript": transcript,
+    record = {
+        "source": dict(source),
+        "profile": dict(profile),
+        "language": transcript.get("language"),
+        "duration": transcript["duration"],
+        "segments": transcript["segments"],
     }
     temporary_path: Path | None = None
     try:
@@ -196,7 +197,7 @@ def _save_cache(cache_path: Path, transcript: Mapping[str, Any]) -> None:
             delete=False,
         ) as temporary_file:
             temporary_path = Path(temporary_file.name)
-            json.dump(entry, temporary_file, indent=2, ensure_ascii=False)
+            json.dump(record, temporary_file, indent=2, ensure_ascii=False)
             temporary_file.write("\n")
             temporary_file.flush()
             os.fsync(temporary_file.fileno())
@@ -215,11 +216,19 @@ def ingest_video(video_path: str | Path) -> dict[str, Any]:
     if not path.is_file():
         raise FileNotFoundError(f"Video file not found: {path}")
 
+    stat = path.stat()
+    source = {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
+    profile = {
+        "model": WHISPER_MODEL,
+        "device": WHISPER_DEVICE,
+        "compute_type": WHISPER_COMPUTE_TYPE,
+        "beam_size": WHISPER_BEAM_SIZE,
+    }
     cache_path = _cache_path_for(path)
-    transcript = _load_cache(cache_path)
+    transcript = _load_cache(cache_path, source, profile)
     if transcript is None:
         transcript = _transcribe_video(path)
-        _save_cache(cache_path, transcript)
+        _save_cache(cache_path, source, profile, transcript)
 
     transcript["video"] = str(path)
     chunks = _build_chunks(transcript["segments"])

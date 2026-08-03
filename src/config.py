@@ -6,6 +6,3 @@ WHISPER_COMPUTE_TYPE = "int8"
 WHISPER_BEAM_SIZE = 5
 
 TRANSCRIPT_CHUNK_WORDS = 70
-
-# Increment when the cached transcript structure or meaning changes.
-CACHE_SCHEMA_VERSION = 1
