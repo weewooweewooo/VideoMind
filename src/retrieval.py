@@ -11,6 +11,10 @@ from typing import Any
 
 
 _TOKEN_PATTERN = re.compile(r"[a-z0-9]+(?:'[a-z0-9]+)?", re.IGNORECASE)
+_SENTENCE_END_PATTERN = re.compile(r"[.!?]+(?=\s|$)")
+_TITLE_ABBREVIATIONS = frozenset(
+    ("dr.", "jr.", "mr.", "mrs.", "ms.", "prof.", "sr.", "st.")
+)
 _DEFAULT_TOP_K = 5
 _STOPWORDS = frozenset(
     (
@@ -141,6 +145,38 @@ def _tokenize(
     return _apply_compound_splits(_base_tokens(text), compound_splits)
 
 
+def _split_sentences(text: str) -> list[str]:
+    """Split transcript text on its punctuation while preserving display text."""
+    fragments: list[str] = []
+    start = 0
+    for match in _SENTENCE_END_PATTERN.finditer(text):
+        fragment = text[start : match.end()].strip()
+        if (
+            match.group(0) == "."
+            and fragment
+            and fragment.lower().split()[-1] in _TITLE_ABBREVIATIONS
+        ):
+            continue
+        if fragment and _TOKEN_PATTERN.search(fragment):
+            fragments.append(fragment)
+        start = match.end()
+
+    final_fragment = text[start:].strip()
+    if final_fragment and _TOKEN_PATTERN.search(final_fragment):
+        fragments.append(final_fragment)
+
+    merged: list[str] = []
+    for fragment in fragments:
+        if merged and len(_TOKEN_PATTERN.findall(fragment)) < 3:
+            merged[-1] = f"{merged[-1]} {fragment}"
+        else:
+            merged.append(fragment)
+    if len(merged) > 1 and len(_TOKEN_PATTERN.findall(merged[0])) < 3:
+        merged[1] = f"{merged[0]} {merged[1]}"
+        del merged[0]
+    return merged
+
+
 class _Bm25Retriever:
     """Build one in-process BM25 index and reuse it across questions."""
 
@@ -165,10 +201,20 @@ class _Bm25Retriever:
         from rank_bm25 import BM25Okapi
 
         self._index = BM25Okapi(tokenized_chunks)
+        self._sentences = tuple(
+            (chunk.chunk_id, sentence_index, sentence, tuple(tokens))
+            for chunk in chunks
+            for sentence_index, sentence in enumerate(_split_sentences(chunk.text))
+            if (tokens := _tokenize(sentence, self._compound_splits))
+        )
 
     @property
     def chunk_count(self) -> int:
         return len(self._chunks)
+
+    @property
+    def sentence_count(self) -> int:
+        return len(self._sentences)
 
     def search(self, question: str) -> list[dict[str, Any]]:
         """Return up to five deterministic positive-score BM25 matches."""
@@ -197,6 +243,63 @@ class _Bm25Retriever:
                 candidates[:_DEFAULT_TOP_K], start=1
             )
         ]
+
+    def search_focused(self, question: str) -> dict[str, Any] | None:
+        """Return the strongest exact sentence within retrieved BM25 chunks."""
+        chunk_results = self.search(question)
+        if not chunk_results:
+            return None
+
+        parent_ranks = {
+            int(result["chunk_id"]): int(result["rank"])
+            for result in chunk_results
+        }
+        sentence_candidates = [
+            candidate
+            for candidate in self._sentences
+            if candidate[0] in parent_ranks
+        ]
+
+        from rank_bm25 import BM25Okapi
+
+        sentence_index = BM25Okapi(
+            [candidate[3] for candidate in sentence_candidates]
+        )
+        query_tokens = _tokenize(
+            _validated_question(question), self._compound_splits
+        )
+        scored_candidates = [
+            (
+                float(score),
+                parent_ranks[chunk_id],
+                sentence_position,
+                chunk_id,
+                sentence,
+            )
+            for score, (chunk_id, sentence_position, sentence, _) in zip(
+                sentence_index.get_scores(query_tokens), sentence_candidates
+            )
+            if float(score) > 0.0
+        ]
+        if not scored_candidates:
+            return None
+
+        score, parent_rank, sentence_position, chunk_id, sentence = min(
+            scored_candidates,
+            key=lambda candidate: (
+                -candidate[0],
+                candidate[1],
+                candidate[2],
+                candidate[3],
+            ),
+        )
+        return {
+            "text": sentence,
+            "chunk_id": chunk_id,
+            "sentence_score": score,
+            "parent_rank": parent_rank,
+            "sentence_index": sentence_position,
+        }
 
 
 def build_retriever(transcript: Mapping[str, Any]) -> _Bm25Retriever:

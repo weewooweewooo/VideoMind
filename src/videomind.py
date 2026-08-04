@@ -20,21 +20,12 @@ class _VideoMindSession:
         self.retriever = build_retriever(transcript)
 
     def query(self, question: str) -> dict[str, Any]:
-        results = [
-            {
-                **result,
-                "score": round(float(result["score"]), 6),
-            }
-            for result in self.retriever.search(question)
-        ]
+        focused_result = self.retriever.search_focused(question)
         return {
-            "video": self.retriever.video,
-            "query": question.strip(),
-            "language": self.transcript.get("language"),
-            "segment_count": self.transcript["segment_count"],
-            "chunk_count": self.retriever.chunk_count,
-            "result_count": len(results),
-            "results": results,
+            "query": question,
+            "focused_evidence": (
+                focused_result["text"] if focused_result is not None else None
+            ),
         }
 
 

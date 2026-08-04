@@ -1,15 +1,14 @@
 # VideoMind
 
-VideoMind transcribes one video, builds a lightweight BM25 lexical index, and
-retrieves transcript passages matching the user's question. It returns
-timestamped evidence rather than a generated answer.
+VideoMind transcribes one video, retrieves relevant transcript chunks with
+BM25, and returns the strongest exact transcript sentence as focused evidence.
 
 ```text
-one video
-  -> transcript or transcript cache
-  -> transcript chunks
-  -> reusable BM25 index
-  -> matching transcript evidence
+video
+  -> cached Faster-Whisper transcript
+  -> normalized BM25 chunk retrieval
+  -> deterministic sentence-level reranking
+  -> exact focused transcript evidence
 ```
 
 ## Install
@@ -34,8 +33,17 @@ python -m src.videomind `
 ```
 
 VideoMind transcribes the video when necessary, caches the normalized
-transcript, builds one in-memory BM25 index, and prints matching transcript
-evidence as JSON.
+transcript, builds one in-memory BM25 chunk index, and prints focused evidence:
+
+```json
+{
+  "query": "What has HCA Health Care automated?",
+  "focused_evidence": "Using MEDALAM, we have automated things like documentation, summarizing insights from medical records."
+}
+```
+
+The public output contains only `query` and `focused_evidence`. Unsupported
+questions return `null` focused evidence.
 
 ## Ask multiple questions
 
@@ -45,9 +53,10 @@ python -m src.videomind `
   --interactive
 ```
 
-The video is ingested once and the same BM25 index is reused for every
-independent question. Use `:help` for interactive commands and `:quit` or
-`:exit` to finish.
+The video is ingested once and the same prepared transcript, BM25 chunk index,
+compound mappings, and sentence candidates are reused for every independent
+question. Use `:help` for interactive commands and `:quit` or `:exit` to
+finish.
 
 ## How retrieval works
 
@@ -59,17 +68,23 @@ validated transcript chunks
   -> remove generic stopwords
   -> BM25 index
   -> meaningful-vocabulary-overlap check
-  -> BM25 scores
-  -> deterministic ranked evidence
+  -> deterministic BM25 chunk ranking
+  -> split sentences in the retrieved chunks
+  -> sentence-level BM25 reranking with the same normalization
+  -> strongest exact transcript sentence
 ```
 
 Chunks and questions use the same normalization pipeline. BM25 remains a
 keyword-based information-retrieval technique, not an embedding model or LLM.
-It does not provide semantic understanding: speaker intent, main-topic
-inference, and general paraphrases may still fail. Unrelated queries with no
-meaningful vocabulary overlap return no evidence. Higher scores mean stronger
-lexical matches; they are raw BM25 ranking values, not confidence, probability,
-or percentages, and are not directly comparable with the former cosine scores.
+The focused evidence is extractive: it is copied from the transcript without
+rewriting, generation, or abstractive summarization. No generative model,
+embedding model, or model training is used. Full chunk text, IDs, timestamps,
+and raw BM25 scores remain available through the internal `search()` API but
+are not exposed in the normal focused response.
+
+VideoMind does not provide semantic understanding. Unrelated queries with no
+meaningful vocabulary overlap return no evidence, and speaker identification
+and main-topic extraction remain unsupported.
 
 ## Transcript cache
 
@@ -99,8 +114,9 @@ The application call graph is:
 main()
   -> ingest_video()
   -> build_retriever()
-  -> search one question or enter the interactive loop
-  -> print matching evidence
+  -> retrieve full BM25 chunks
+  -> rerank their exact transcript sentences
+  -> print focused evidence
 ```
 
 Transcription remains lazy: importing VideoMind does not import
@@ -111,7 +127,11 @@ Faster-Whisper.
 - BM25 does not understand synonyms.
 - Strongly paraphrased questions may return weak or no evidence.
 - BM25 scores are ranking values, not confidence.
-- Natural-language answer generation is not implemented.
+- Only one exact transcript sentence is returned, so useful surrounding context
+  may be omitted.
+- Speaker identification and main-topic extraction are not implemented.
+- Natural-language answer generation and abstractive summarization are not
+  implemented.
 - Questions are independent; interactive mode has no conversation memory.
 - Transcript and retrieval indexes are process-local. Only normalized
   transcript segments are cached between processes.
