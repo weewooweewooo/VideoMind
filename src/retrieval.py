@@ -7,7 +7,9 @@ from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
+from rank_bm25 import BM25Okapi
 
+from src.config import DEFAULT_TOP_K
 from src.normalization import (
     _apply_compound_splits,
     _base_tokens,
@@ -15,8 +17,6 @@ from src.normalization import (
     _split_sentences,
     _tokenize,
 )
-
-_DEFAULT_TOP_K = 5
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,7 +100,6 @@ class _Bm25Retriever:
             token for tokens in tokenized_chunks for token in tokens
         )
 
-        from rank_bm25 import BM25Okapi
 
         self._index = BM25Okapi(tokenized_chunks)
         self._sentences = tuple(
@@ -118,14 +117,18 @@ class _Bm25Retriever:
     def sentence_count(self) -> int:
         return len(self._sentences)
 
-    def search(self, question: str) -> list[dict[str, Any]]:
-        """Return up to five deterministic positive-score BM25 matches."""
+    def search(
+        self, question: str, top_k: int = DEFAULT_TOP_K
+    ) -> list[dict[str, Any]]:
+        """Return up to top_k deterministic positive-score BM25 matches."""
         query_tokens = _tokenize(
             _validated_question(question), self._compound_splits
         )
-        return self._search_normalized(query_tokens)
+        return self._search_normalized(query_tokens, top_k)
 
-    def _search_normalized(self, query_tokens: list[str]) -> list[dict[str, Any]]:
+    def _search_normalized(
+        self, query_tokens: list[str], top_k: int = DEFAULT_TOP_K
+    ) -> list[dict[str, Any]]:
         if not query_tokens or self._vocabulary.isdisjoint(query_tokens):
             return []
 
@@ -145,7 +148,7 @@ class _Bm25Retriever:
                 "score": score,
             }
             for rank, (score, chunk) in enumerate(
-                candidates[:_DEFAULT_TOP_K], start=1
+                candidates[:top_k], start=1
             )
         ]
 
