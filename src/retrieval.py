@@ -3,29 +3,20 @@
 from __future__ import annotations
 
 import math
-import re
 from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from src.normalization import (
+    _apply_compound_splits,
+    _base_tokens,
+    _discover_compound_splits,
+    _split_sentences,
+    _tokenize,
+)
 
-_TOKEN_PATTERN = re.compile(r"[a-z0-9]+(?:'[a-z0-9]+)?", re.IGNORECASE)
-_SENTENCE_END_PATTERN = re.compile(r"[.!?]+(?=\s|$)")
-_TITLE_ABBREVIATIONS = frozenset(
-    ("dr.", "jr.", "mr.", "mrs.", "ms.", "prof.", "sr.", "st.")
-)
 _DEFAULT_TOP_K = 5
-_STOPWORDS = frozenset(
-    (
-        "a an and are as at be been being but by can could did do does doing "
-        "for from had has have having he her hers him his how i if in into is "
-        "it its itself may me might my of on or our ours she should so that "
-        "the their theirs them themselves then there these they this those "
-        "through to was we were what when where which while who why will with "
-        "work would you your yours"
-    ).split()
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,143 +33,54 @@ def _validated_question(question: str) -> str:
     return question.strip()
 
 
-def _light_stem(token: str) -> str:
-    """Normalize a small set of safe English suffix patterns."""
-    if (
-        len(token) <= 3
-        or token.isdigit()
-        or token in _STOPWORDS
-        or "'" in token
-    ):
-        return token
+def _score_bm25_sentences(
+    query_tokens: list[str],
+    tokenized_sentences: list[tuple[str, ...]],
+    *,
+    k1: float,
+    b: float,
+    epsilon: float,
+) -> list[float]:
+    """Score prepared eligible sentences with BM25Okapi's formula."""
+    if not query_tokens or not tokenized_sentences:
+        return [0.0] * len(tokenized_sentences)
 
-    replacements = (
-        ("izations", "ize"),
-        ("ization", "ize"),
-        ("izing", "ize"),
-        ("ized", "ize"),
-        ("ating", "ate"),
-        ("ated", "ate"),
-        ("izes", "ize"),
-        ("ates", "ate"),
-    )
-    for suffix, replacement in replacements:
-        if token.endswith(suffix):
-            stem = token[: -len(suffix)] + replacement
-            return stem if len(stem) >= 4 else token
-
-    for suffix in ("ations", "ation"):
-        if token.endswith(suffix):
-            root = token[: -len(suffix)]
-            if len(root) < 4:
-                return token
-            if root.endswith(("form", "ment")):
-                return root
-            if root.endswith("vers"):
-                return root + "e"
-            return root + "ate"
-
-    if token.endswith("s") and not token.endswith(
-        ("es", "is", "ss", "us", "ys")
-    ):
-        stem = token[:-1]
-        return stem if len(stem) >= 4 else token
-    return token
-
-
-def _base_tokens(text: str) -> list[str]:
-    return [
-        _light_stem(match.group(0).lower())
-        for match in _TOKEN_PATTERN.finditer(text)
-    ]
-
-
-def _discover_compound_splits(
-    tokenized_chunks: list[list[str]],
-) -> dict[str, tuple[str, str]]:
+    document_count = len(tokenized_sentences)
+    average_length = sum(map(len, tokenized_sentences)) / document_count
     document_frequencies = Counter(
-        token
-        for tokens in tokenized_chunks
-        for token in set(tokens)
-        if token not in _STOPWORDS
+        term for tokens in tokenized_sentences for term in set(tokens)
     )
-    splits: dict[str, tuple[str, str]] = {}
-    for token in sorted(document_frequencies):
-        if len(token) < 6 or token.isdigit():
-            continue
-        candidates: list[tuple[int, int, int, str, str]] = []
-        for position in range(3, len(token) - 2):
-            left, right = token[:position], token[position:]
-            left_frequency = document_frequencies.get(left, 0)
-            right_frequency = document_frequencies.get(right, 0)
-            if left_frequency < 2 or right_frequency < 2:
-                continue
-            candidates.append(
-                (
-                    left_frequency + right_frequency,
-                    -abs(len(left) - len(right)),
-                    -position,
-                    left,
-                    right,
+    raw_idf = {
+        term: math.log(document_count - frequency + 0.5)
+        - math.log(frequency + 0.5)
+        for term, frequency in document_frequencies.items()
+    }
+    average_idf = sum(raw_idf.values()) / len(raw_idf)
+    epsilon_idf = epsilon * average_idf
+    idf = {
+        term: epsilon_idf if value < 0.0 else value
+        for term, value in raw_idf.items()
+    }
+
+    scores: list[float] = []
+    for tokens in tokenized_sentences:
+        frequencies = Counter(tokens)
+        length_factor = k1 * (1 - b + b * len(tokens) / average_length)
+        scores.append(
+            sum(
+                idf.get(term, 0.0)
+                * (
+                    frequencies.get(term, 0) * (k1 + 1)
+                    / (frequencies.get(term, 0) + length_factor)
                 )
+                for term in query_tokens
             )
-        if candidates:
-            _, _, _, left, right = max(candidates)
-            splits[token] = (left, right)
-    return splits
-
-
-def _apply_compound_splits(
-    base_tokens: list[str],
-    compound_splits: Mapping[str, tuple[str, str]],
-) -> list[str]:
-    tokens: list[str] = []
-    for token in base_tokens:
-        tokens.extend(compound_splits.get(token, (token,)))
-    return [token for token in tokens if token not in _STOPWORDS]
-
-
-def _tokenize(
-    text: str,
-    compound_splits: Mapping[str, tuple[str, str]],
-) -> list[str]:
-    return _apply_compound_splits(_base_tokens(text), compound_splits)
-
-
-def _split_sentences(text: str) -> list[str]:
-    """Split transcript text on its punctuation while preserving display text."""
-    fragments: list[str] = []
-    start = 0
-    for match in _SENTENCE_END_PATTERN.finditer(text):
-        fragment = text[start : match.end()].strip()
-        if (
-            match.group(0) == "."
-            and fragment
-            and fragment.lower().split()[-1] in _TITLE_ABBREVIATIONS
-        ):
-            continue
-        if fragment and _TOKEN_PATTERN.search(fragment):
-            fragments.append(fragment)
-        start = match.end()
-
-    final_fragment = text[start:].strip()
-    if final_fragment and _TOKEN_PATTERN.search(final_fragment):
-        fragments.append(final_fragment)
-
-    merged: list[str] = []
-    for fragment in fragments:
-        if merged and len(_TOKEN_PATTERN.findall(fragment)) < 3:
-            merged[-1] = f"{merged[-1]} {fragment}"
-        else:
-            merged.append(fragment)
-    if len(merged) > 1 and len(_TOKEN_PATTERN.findall(merged[0])) < 3:
-        merged[1] = f"{merged[0]} {merged[1]}"
-        del merged[0]
-    return merged
+        )
+    return scores
 
 
 class _Bm25Retriever:
-    """Build one in-process BM25 index and reuse it across questions."""
+    """Build one in-process BM25 chunk index and reuse it across questions."""
 
     def __init__(self, video: str, chunks: tuple[_TranscriptChunk, ...]) -> None:
         self.video = video
@@ -221,6 +123,9 @@ class _Bm25Retriever:
         query_tokens = _tokenize(
             _validated_question(question), self._compound_splits
         )
+        return self._search_normalized(query_tokens)
+
+    def _search_normalized(self, query_tokens: list[str]) -> list[dict[str, Any]]:
         if not query_tokens or self._vocabulary.isdisjoint(query_tokens):
             return []
 
@@ -244,9 +149,12 @@ class _Bm25Retriever:
             )
         ]
 
-    def search_focused(self, question: str) -> dict[str, Any] | None:
-        """Return the strongest exact sentence within retrieved BM25 chunks."""
-        chunk_results = self.search(question)
+    def _select_best_sentence(self, question: str) -> dict[str, Any] | None:
+        """Select the strongest exact sentence for focused retrieval."""
+        query_tokens = _tokenize(
+            _validated_question(question), self._compound_splits
+        )
+        chunk_results = self._search_normalized(query_tokens)
         if not chunk_results:
             return None
 
@@ -259,14 +167,12 @@ class _Bm25Retriever:
             for candidate in self._sentences
             if candidate[0] in parent_ranks
         ]
-
-        from rank_bm25 import BM25Okapi
-
-        sentence_index = BM25Okapi(
-            [candidate[3] for candidate in sentence_candidates]
-        )
-        query_tokens = _tokenize(
-            _validated_question(question), self._compound_splits
+        sentence_scores = _score_bm25_sentences(
+            query_tokens,
+            [candidate[3] for candidate in sentence_candidates],
+            k1=self._index.k1,
+            b=self._index.b,
+            epsilon=self._index.epsilon,
         )
         scored_candidates = [
             (
@@ -277,7 +183,8 @@ class _Bm25Retriever:
                 sentence,
             )
             for score, (chunk_id, sentence_position, sentence, _) in zip(
-                sentence_index.get_scores(query_tokens), sentence_candidates
+                sentence_scores,
+                sentence_candidates,
             )
             if float(score) > 0.0
         ]
@@ -301,9 +208,15 @@ class _Bm25Retriever:
             "sentence_index": sentence_position,
         }
 
+    def search_focused(self, question: str) -> dict[str, Any] | None:
+        """Return the strongest exact sentence within retrieved BM25 chunks."""
+        return self._select_best_sentence(question)
 
-def build_retriever(transcript: Mapping[str, Any]) -> _Bm25Retriever:
-    """Validate prepared chunks and build one reusable BM25 index."""
+
+def build_retriever(
+    transcript: Mapping[str, Any],
+) -> _Bm25Retriever:
+    """Validate prepared chunks and build one reusable BM25 retriever."""
     if not isinstance(transcript, Mapping):
         raise ValueError("Invalid transcript")
     video = transcript.get("video")
