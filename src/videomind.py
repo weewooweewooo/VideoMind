@@ -12,6 +12,9 @@ from src.ingestion import ingest_video
 from src.retrieval import build_retriever
 
 
+_NO_EVIDENCE_MESSAGE = "No relevant evidence found in the video."
+
+
 class _VideoMindSession:
     """Reuse one prepared transcript and BM25 index across questions."""
 
@@ -29,18 +32,31 @@ class _VideoMindSession:
         }
 
 
-def _print_json(value: Mapping[str, Any], *, pretty: bool) -> None:
-    print(json.dumps(value, indent=2 if pretty else None, ensure_ascii=False))
+def _print_result(
+    result: Mapping[str, Any],
+    *,
+    json_output: bool,
+    pretty: bool,
+) -> None:
+    if json_output:
+        print(json.dumps(result, indent=2 if pretty else None, ensure_ascii=False))
+        return
+    print(result["focused_evidence"] or _NO_EVIDENCE_MESSAGE)
 
 
 def _query_and_print(
     session: _VideoMindSession,
     question: str,
     *,
+    json_output: bool,
     pretty: bool,
 ) -> None:
     try:
-        _print_json(session.query(question), pretty=pretty)
+        _print_result(
+            session.query(question),
+            json_output=json_output,
+            pretty=pretty,
+        )
     except Exception as exc:
         print(f"VideoMind query failed: {exc}", file=sys.stderr)
 
@@ -49,12 +65,18 @@ def _run_interactive_session(
     session: _VideoMindSession,
     *,
     initial_question: str | None,
+    json_output: bool,
     pretty: bool,
 ) -> int:
     """Read questions while reusing one transcript and one BM25 index."""
     try:
         if initial_question is not None:
-            _query_and_print(session, initial_question, pretty=pretty)
+            _query_and_print(
+                session,
+                initial_question,
+                json_output=json_output,
+                pretty=pretty,
+            )
 
         print(
             "VideoMind ready. Enter a question, or use :help for commands.",
@@ -75,7 +97,12 @@ def _run_interactive_session(
                 continue
             if question in {":quit", ":exit"}:
                 return 0
-            _query_and_print(session, question, pretty=pretty)
+            _query_and_print(
+                session,
+                question,
+                json_output=json_output,
+                pretty=pretty,
+            )
     except KeyboardInterrupt:
         print("\nVideoMind interactive session ended", file=sys.stderr)
         return 0
@@ -96,9 +123,14 @@ def _build_argument_parser() -> argparse.ArgumentParser:
         help="Read questions from stdin while reusing one BM25 index.",
     )
     parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the structured query result as JSON.",
+    )
+    parser.add_argument(
         "--pretty",
         action="store_true",
-        help="Pretty-print evidence JSON.",
+        help="Indent JSON output when used with --json.",
     )
     return parser
 
@@ -115,10 +147,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_interactive_session(
                 session,
                 initial_question=args.question,
+                json_output=args.json,
                 pretty=args.pretty,
             )
 
-        _print_json(session.query(args.question), pretty=args.pretty)
+        _print_result(
+            session.query(args.question),
+            json_output=args.json,
+            pretty=args.pretty,
+        )
         return 0
     except KeyboardInterrupt:
         print("VideoMind interrupted", file=sys.stderr)
