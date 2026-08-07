@@ -1,15 +1,17 @@
 # VideoMind
 
-VideoMind transcribes one local video and retrieves the strongest exact
-transcript sentence as focused evidence for a question. It uses deterministic
-lexical retrieval and intentionally returns transcript evidence rather than
-generating an answer.
+VideoMind accepts one YouTube URL and retrieves the strongest exact transcript
+sentence as focused evidence for a question. It uses deterministic lexical
+retrieval and intentionally returns transcript evidence rather than generating
+an answer.
 
 ## Architecture
 
 ```text
-Video
-→ Faster-Whisper transcription
+Input
+→ YouTube URL
+→ creator English captions or automatic English captions
+→ audio-only Faster-Whisper fallback when captions are unavailable
 → stable transcript cache
 → timestamped transcript chunks
 → custom lexical normalization
@@ -20,9 +22,9 @@ Video
 
 The current implementation is divided into five modules:
 
-- `ingestion.py`: validates the video, transcribes it with Faster-Whisper,
-  reads and writes the persistent transcript cache, validates transcript
-  segments, and builds timestamped transcript chunks.
+- `ingestion.py`: validates YouTube input, acquires captions or falls back to
+  Faster-Whisper, reads and writes the persistent transcript cache, validates
+  transcript segments, and builds timestamped transcript chunks.
 - `normalization.py`: tokenizes text, filters stopwords, applies conservative
   light stemming, discovers and applies corpus-aware compound splits, and
   splits transcript text into sentences.
@@ -43,22 +45,22 @@ py -m venv venv
 python -m pip install -r requirements.txt
 ```
 
-`requirements.txt` provides Faster-Whisper transcription and BM25 retrieval.
-The first use of the configured Faster-Whisper `base` model may download model
-files.
+`requirements.txt` provides Faster-Whisper transcription, `yt-dlp` YouTube
+metadata/caption acquisition, and BM25 retrieval. The first use of the
+configured Faster-Whisper `base` model may download model files.
 
 ## Command-line usage
 
-The CLI accepts the video path followed by the question. Plain text is the
-default output:
+The CLI accepts a YouTube URL followed by the question. Plain text is the
+default output. Replace the eleven `X` characters with the video's ID:
 
 ```powershell
-py -3.13 -m src.videomind data\WjNlodSXlmI.mp4 "What did HCA automate?"
+py -3.13 -m src.videomind "https://www.youtube.com/watch?v=XXXXXXXXXXX" "What is discussed?"
 ```
 
-```text
-Using MEDALAM, we have automated things like documentation, summarizing insights from medical records.
-```
+VideoMind tries creator English captions, then original automatic English
+captions. If neither yields a valid transcript, it downloads audio temporarily
+and falls back to Faster-Whisper.
 
 When no relevant transcript evidence is found, plain-text mode prints:
 
@@ -69,23 +71,23 @@ No relevant evidence found in the video.
 Use `--json` for a single-line JSON object:
 
 ```powershell
-py -3.13 -m src.videomind data\WjNlodSXlmI.mp4 "What did HCA automate?" --json
+py -3.13 -m src.videomind "https://www.youtube.com/watch?v=XXXXXXXXXXX" "What is discussed?" --json
 ```
 
 ```json
-{"query": "What did HCA automate?", "focused_evidence": "Using MEDALAM, we have automated things like documentation, summarizing insights from medical records."}
+{"query": "What is discussed?", "focused_evidence": "Exact transcript evidence."}
 ```
 
 Use `--pretty` with `--json` for indented JSON:
 
 ```powershell
-py -3.13 -m src.videomind data\WjNlodSXlmI.mp4 "What did HCA automate?" --json --pretty
+py -3.13 -m src.videomind "https://www.youtube.com/watch?v=XXXXXXXXXXX" "What is discussed?" --json --pretty
 ```
 
 ```json
 {
-  "query": "What did HCA automate?",
-  "focused_evidence": "Using MEDALAM, we have automated things like documentation, summarizing insights from medical records."
+  "query": "What is discussed?",
+  "focused_evidence": "Exact transcript evidence."
 }
 ```
 
@@ -95,7 +97,7 @@ keeps the original query and returns `null` for `focused_evidence`.
 ## Interactive use
 
 ```powershell
-py -3.13 -m src.videomind data\WjNlodSXlmI.mp4 --interactive
+py -3.13 -m src.videomind "https://www.youtube.com/watch?v=XXXXXXXXXXX" --interactive
 ```
 
 The video is ingested once, and the prepared transcript, compound mappings,
@@ -117,12 +119,11 @@ the internal `search()` API but are not included in the focused CLI response.
 
 ## Transcript cache
 
-VideoMind uses one stable, inspectable JSON cache file per resolved video path.
-Each record contains `source`, `profile`, `language`, `duration`, and
-`segments`. Source size and modification time and the fixed transcription
-profile determine whether the cached transcript remains valid. If either
-changes, VideoMind retranscribes the video and atomically replaces the cache
-entry.
+VideoMind uses one stable, inspectable JSON cache file per YouTube video ID.
+Cache records keep caption/source provenance and a versioned acquisition
+profile. A warm cache is checked from the URL-derived video ID before any
+network request, so it remains usable offline. Cache entries are replaced
+atomically.
 
 On Windows, the cache is stored under
 `%LOCALAPPDATA%\VideoMind\cache`. On other platforms, it is stored under
@@ -144,7 +145,8 @@ Faster-Whisper.
 
 ## Current capabilities
 
-- Local video transcription.
+- YouTube URL input.
+- Creator/automatic caption acquisition with audio-only Whisper fallback.
 - Persistent transcript caching.
 - Timestamped transcript chunking.
 - Custom lexical normalization.
@@ -168,11 +170,11 @@ VideoMind currently does not provide:
 - Speaker diarization.
 - Main-topic analysis.
 - Persistent vocabulary learning; compound mappings are corpus-aware and
-  process-local.
+  in-process.
 - Multi-video indexing.
 
 BM25 remains keyword-based, so it does not understand synonyms and strongly
 paraphrased questions may return weak or no evidence. BM25 scores are ranking
 values, not confidence values. Only one transcript sentence is returned, so
 useful surrounding context may be omitted. Real transcription also depends on
-local hardware, media compatibility, and model availability.
+available hardware, media compatibility, and model availability.

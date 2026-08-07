@@ -1,4 +1,4 @@
-"""Single-video VideoMind command-line application."""
+"""YouTube-only VideoMind command-line application."""
 
 from __future__ import annotations
 
@@ -111,11 +111,11 @@ def _run_interactive_session(
 def _build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Transcribe one local video and retrieve transcript evidence "
-            "for one or more questions."
+            "Acquire one YouTube video transcript and retrieve evidence for one "
+            "or more questions."
         )
     )
-    parser.add_argument("video", help="Path to one local video.")
+    parser.add_argument("youtube_url", help="Supported YouTube video URL.")
     parser.add_argument("question", nargs="?", help="Question about the video.")
     parser.add_argument(
         "--interactive",
@@ -139,9 +139,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _build_argument_parser().parse_args(argv)
     try:
         if args.question is None and not args.interactive:
-            raise ValueError("A question is required after the video path")
+            raise ValueError("A question is required after the YouTube URL")
 
-        transcript = ingest_video(args.video)
+        transcript = ingest_video(args.youtube_url)
         session = _VideoMindSession(transcript)
         if args.interactive:
             return _run_interactive_session(
