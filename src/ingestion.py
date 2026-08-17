@@ -1,4 +1,4 @@
-"""YouTube transcript orchestration, chunking, and caching."""
+"""Local-video transcription, chunking, and transcript caching."""
 
 from __future__ import annotations
 
@@ -11,7 +11,6 @@ from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
-from src import youtube
 from src.config import (
     TRANSCRIPT_CHUNK_WORDS,
     WHISPER_BEAM_SIZE,
@@ -50,8 +49,10 @@ def _normalize_segments(segments: Iterable[Any]) -> list[dict[str, str | float]]
             or end <= start
         ):
             raise ValueError(f"Invalid transcript segment at index {index}")
-        if previous_start is not None and previous_end is not None and (
-            start < previous_start or end < previous_end
+        if (
+            previous_start is not None
+            and previous_end is not None
+            and (start < previous_start or end < previous_end)
         ):
             raise ValueError(f"Transcript segments are out of order at index {index}")
 
@@ -91,7 +92,7 @@ def _build_chunks(segments: list[dict[str, str | float]]) -> list[dict[str, Any]
 
 
 def _transcribe_video(video_path: Path) -> dict[str, Any]:
-    """Transcribe temporary YouTube audio with fixed Faster-Whisper defaults."""
+    """Transcribe one local video with fixed Faster-Whisper defaults."""
     try:
         from faster_whisper import WhisperModel
     except ImportError as exc:
@@ -101,8 +102,11 @@ def _transcribe_video(video_path: Path) -> dict[str, Any]:
         ) from exc
 
     model = WhisperModel(
-        WHISPER_MODEL, device=WHISPER_DEVICE, compute_type=WHISPER_COMPUTE_TYPE,
-        num_workers=4, cpu_threads=8,
+        WHISPER_MODEL,
+        device=WHISPER_DEVICE,
+        compute_type=WHISPER_COMPUTE_TYPE,
+        num_workers=4,
+        cpu_threads=8,
     )
     raw_segments, info = model.transcribe(
         str(video_path),
@@ -123,41 +127,25 @@ def _cache_directory() -> Path:
     if os.name == "nt":
         return (
             Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
-            / "VideoMind" / "cache"
+            / "VideoMind"
+            / "cache"
         )
     return Path.home() / ".cache" / "videomind"
 
 
-def _cache_path_for(identity: youtube.YouTubeIdentity) -> Path:
-    """Return the policy-level cache path derivable without network access."""
-    cache_key = hashlib.sha256(
-        (
-            f"youtube:{identity.video_id}:caption-first:"
-            f"{youtube.CAPTION_PROFILE_VERSION}"
-        ).encode("utf-8")
-    ).hexdigest()
+def _cache_path_for(video_path: Path) -> Path:
+    """Return the stable cache file for one resolved local video path."""
+    resolved_path = os.path.normcase(str(video_path.resolve()))
+    cache_key = hashlib.sha256(resolved_path.encode("utf-8")).hexdigest()
     return _cache_directory() / f"{cache_key}.json"
 
 
-def _cache_profile() -> dict[str, Any]:
-    """Describe every setting that can materially change acquisition."""
+def _cache_profile() -> dict[str, str | int]:
     return {
-        "acquisition": "youtube_caption_first",
-        "preferred_language": "en",
-        "caption_priority": ["manual", "automatic", "whisper"],
-        "source_types": [
-            "youtube_manual_caption",
-            "youtube_auto_caption",
-            "whisper",
-        ],
-        "caption_formats": list(youtube.CAPTION_FORMATS),
-        "caption_parser_version": youtube.CAPTION_PROFILE_VERSION,
-        "whisper": {
-            "model": WHISPER_MODEL,
-            "device": WHISPER_DEVICE,
-            "compute_type": WHISPER_COMPUTE_TYPE,
-            "beam_size": WHISPER_BEAM_SIZE,
-        },
+        "model": WHISPER_MODEL,
+        "device": WHISPER_DEVICE,
+        "compute_type": WHISPER_COMPUTE_TYPE,
+        "beam_size": WHISPER_BEAM_SIZE,
     }
 
 
@@ -176,9 +164,7 @@ def _load_cache(
 
     if not isinstance(data, Mapping):
         return None
-    if data.get("source") != source:
-        return None
-    if data.get("profile") != profile:
+    if data.get("source") != source or data.get("profile") != profile:
         return None
     language = data.get("language")
     if language is not None and (not isinstance(language, str) or not language.strip()):
@@ -196,11 +182,7 @@ def _load_cache(
         return None
     if not math.isfinite(duration) or duration <= 0:
         return None
-    transcript = {"language": language, "duration": duration, "segments": segments}
-    source_metadata = data.get("transcript_source")
-    if isinstance(source_metadata, Mapping):
-        transcript["transcript_source"] = dict(source_metadata)
-    return transcript
+    return {"language": language, "duration": duration, "segments": segments}
 
 
 def _save_cache(
@@ -218,8 +200,6 @@ def _save_cache(
         "duration": transcript["duration"],
         "segments": transcript["segments"],
     }
-    if isinstance(transcript.get("transcript_source"), Mapping):
-        record["transcript_source"] = dict(transcript["transcript_source"])
     temporary_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
@@ -242,103 +222,33 @@ def _save_cache(
         raise
 
 
-def _acquire_transcript(
-    identity: youtube.YouTubeIdentity,
-    metadata: youtube.YouTubeMetadata,
+def _prepare_transcript(
+    transcript: Mapping[str, Any], video_path: Path
 ) -> dict[str, Any]:
-    try:
-        duration = float(metadata.duration)
-    except (TypeError, ValueError) as exc:
-        raise RuntimeError("YouTube video metadata has no valid duration") from exc
-    if not math.isfinite(duration) or duration <= 0:
-        raise RuntimeError("YouTube video metadata has no valid duration")
-
-    caption_errors: list[str] = []
-    for track in metadata.caption_tracks:
-        try:
-            payload = youtube.download_caption(track)
-            segments = _normalize_segments(
-                youtube.parse_captions(payload, track.extension)
-            )
-            youtube.validate_captions(segments, duration, track.language)
-        except (KeyError, OverflowError, RuntimeError, TypeError, ValueError) as exc:
-            caption_errors.append(str(exc))
-            continue
-        source_type = (
-            "youtube_auto_caption"
-            if track.is_generated
-            else "youtube_manual_caption"
-        )
-        return {
-            "language": track.language,
-            "duration": duration,
-            "segments": segments,
-            "transcript_source": {
-                "source_type": source_type,
-                "source_language": track.language,
-                "source_video_id": identity.video_id,
-                "canonical_source": identity.canonical_url,
-                "generated_or_manual": (
-                    "generated" if track.is_generated else "manual"
-                ),
-                "caption_format": track.extension,
-                "parser_version": youtube.CAPTION_PROFILE_VERSION,
-            },
-        }
-
-    try:
-        with youtube.acquire_audio(identity) as audio_path:
-            transcript = _transcribe_video(audio_path)
-    except Exception as exc:
-        detail = caption_errors[-1] if caption_errors else "no usable English captions"
-        raise RuntimeError(
-            f"YouTube caption acquisition failed ({detail}); Whisper audio fallback "
-            f"also failed: {exc}"
-        ) from exc
-    transcript["transcript_source"] = {
-        "source_type": "whisper",
-        "source_language": transcript.get("language"),
-        "source_video_id": identity.video_id,
-        "canonical_source": identity.canonical_url,
-        "generated_or_manual": None,
-    }
-    return transcript
-
-
-def _prepare_transcript(transcript: dict[str, Any], video: str) -> dict[str, Any]:
-    transcript["video"] = video
     chunks = _build_chunks(transcript["segments"])
     return {
         **transcript,
+        "video": str(video_path),
         "segment_count": len(transcript["segments"]),
         "chunk_count": len(chunks),
         "chunks": chunks,
     }
 
 
-def _ingest_youtube_video(identity: youtube.YouTubeIdentity) -> dict[str, Any]:
-    source = {
-        "video_id": identity.video_id,
-        "canonical_url": identity.canonical_url,
-    }
+def ingest_video(video_path: str | Path) -> dict[str, Any]:
+    """Validate, cache or transcribe, chunk, and return one local video."""
+    if not isinstance(video_path, (str, Path)) or not str(video_path).strip():
+        raise ValueError("A local video path is required")
+    path = Path(video_path).expanduser().resolve()
+    if not path.is_file():
+        raise FileNotFoundError(f"Video file not found: {path}")
+
+    stat = path.stat()
+    source = {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
     profile = _cache_profile()
-    cache_path = _cache_path_for(identity)
+    cache_path = _cache_path_for(path)
     transcript = _load_cache(cache_path, source, profile)
-    if transcript is not None and not isinstance(
-        transcript.get("transcript_source"), Mapping
-    ):
-        transcript = None
     if transcript is None:
-        metadata = youtube.load_metadata(identity)
-        if metadata.video_id != identity.video_id:
-            raise RuntimeError("YouTube metadata did not match the requested video ID")
-        transcript = _acquire_transcript(identity, metadata)
+        transcript = _transcribe_video(path)
         _save_cache(cache_path, source, profile, transcript)
-    return _prepare_transcript(transcript, identity.canonical_url)
-
-
-def ingest_video(youtube_url: str) -> dict[str, Any]:
-    """Acquire one YouTube transcript and prepare common chunks."""
-    if not isinstance(youtube_url, str) or not youtube_url.strip():
-        raise ValueError("Input must be a supported YouTube URL")
-    return _ingest_youtube_video(youtube.resolve_identity(youtube_url.strip()))
+    return _prepare_transcript(transcript, path)

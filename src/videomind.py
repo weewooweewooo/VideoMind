@@ -1,4 +1,4 @@
-"""YouTube-only VideoMind command-line application."""
+"""Local-video VideoMind command-line application."""
 
 from __future__ import annotations
 
@@ -23,12 +23,10 @@ class _VideoMindSession:
         self.retriever = build_retriever(transcript)
 
     def query(self, question: str) -> dict[str, Any]:
-        focused_result = self.retriever.search_focused(question)
+        results = self.retriever.search(question, top_k=1)
         return {
             "query": question,
-            "focused_evidence": (
-                focused_result["text"] if focused_result is not None else None
-            ),
+            "focused_evidence": results[0]["text"] if results else None,
         }
 
 
@@ -111,11 +109,11 @@ def _run_interactive_session(
 def _build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Acquire one YouTube video transcript and retrieve evidence for one "
+            "Transcribe one local video and retrieve evidence for one "
             "or more questions."
         )
     )
-    parser.add_argument("youtube_url", help="Supported YouTube video URL.")
+    parser.add_argument("video", help="Path to one local media file.")
     parser.add_argument("question", nargs="?", help="Question about the video.")
     parser.add_argument(
         "--interactive",
@@ -139,9 +137,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _build_argument_parser().parse_args(argv)
     try:
         if args.question is None and not args.interactive:
-            raise ValueError("A question is required after the YouTube URL")
+            raise ValueError("A question is required after the video path")
 
-        transcript = ingest_video(args.youtube_url)
+        transcript = ingest_video(args.video)
         session = _VideoMindSession(transcript)
         if args.interactive:
             return _run_interactive_session(
