@@ -63,6 +63,22 @@ def _normalize_segments(segments: Iterable[Any]) -> list[dict[str, str | float]]
     return normalized
 
 
+def compile_transcript_text(segments: Iterable[Any]) -> str:
+    """Validate timestamped segments and join their normalized text on demand."""
+    normalized = _normalize_segments(segments)
+    return " ".join(str(segment["text"]) for segment in normalized)
+
+
+def compile_transcript(segments: Iterable[Any]) -> dict[str, str | float]:
+    """Return one timestamped transcript derived from validated segments."""
+    normalized = _normalize_segments(segments)
+    return {
+        "start": float(normalized[0]["start"]),
+        "end": float(normalized[-1]["end"]),
+        "text": compile_transcript_text(normalized),
+    }
+
+
 def _build_chunks(segments: list[dict[str, str | float]]) -> list[dict[str, Any]]:
     """Build fixed deterministic chunks without reusing transcript segments."""
     chunks: list[dict[str, str | float]] = []
@@ -75,7 +91,7 @@ def _build_chunks(segments: list[dict[str, str | float]]) -> list[dict[str, Any]
             {
                 "start": float(current[0]["start"]),
                 "end": float(current[-1]["end"]),
-                "text": " ".join(str(segment["text"]) for segment in current),
+                "text": compile_transcript_text(current),
             }
         )
         current = []

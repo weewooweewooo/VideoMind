@@ -38,7 +38,7 @@ python -m pip install -r requirements.txt
 ```
 
 `requirements.txt` provides Faster-Whisper transcription and BM25S retrieval.
-The first use of the configured Faster-Whisper `base` model may download model
+The first use of the configured Faster-Whisper `small` model may download model
 files. Faster-Whisper reads supported media directly through PyAV; VideoMind
 does not create an intermediate WAV file.
 
