@@ -2,6 +2,7 @@
 data/*.mp4
 transcript.json
 .videomind-cache/
+.videomind_benchmark/
 
 # Python
 __pycache__/
