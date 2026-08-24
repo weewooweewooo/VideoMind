@@ -1,0 +1,100 @@
+{
+  "video_path": "data/test2.mp4",
+  "transcript_fixture": {
+    "path": "data/test2.small.transcript.json",
+    "sha256": "ac8cc094c06eedd52dc2d1aaa1a8e235a0671ce9d996767327d07080aa3e4a7b",
+    "segment_count": 710,
+    "chunk_count": 78
+  },
+  "candidate": {
+    "signal": "positive_scoring_bm25_chunk_count",
+    "reject_operator": "<",
+    "cutoff": 38
+  },
+  "queries": [
+    {
+      "type": "exact",
+      "category": "narrow_supported",
+      "query": "What book by Hans Moravec supports the idea of AIs inheriting humanity's future?",
+      "expected": {"start": 980.0, "end": 992.0}
+    },
+    {
+      "type": "exact",
+      "category": "narrow_supported",
+      "query": "What was the anti-AI uprising in Dune called?",
+      "expected": {"start": 1657.0, "end": 1670.0}
+    },
+    {
+      "type": "exact",
+      "category": "narrow_supported",
+      "query": "What were honeybees trained to detect at airports?",
+      "expected": {"start": 1546.0, "end": 1568.0}
+    },
+    {
+      "type": "paraphrase",
+      "category": "normal_supported",
+      "query": "Why does the video say AGI risk is harder to calculate than nuclear risk?",
+      "expected": {"start": 253.0, "end": 275.0}
+    },
+    {
+      "type": "paraphrase",
+      "category": "normal_supported",
+      "query": "How would the Gatekeeper AI stop people from building a rival superintelligence?",
+      "expected": {"start": 832.0, "end": 887.0}
+    },
+    {
+      "type": "paraphrase",
+      "category": "broad_supported",
+      "query": "What non-AI catastrophes could make humanity go extinct?",
+      "expected": {"start": 123.0, "end": 136.0}
+    },
+    {
+      "type": "paraphrase",
+      "category": "broad_supported",
+      "query": "How does the video propose regulating powerful AI without banning it?",
+      "expected": {"start": 2023.0, "end": 2047.0}
+    },
+    {
+      "type": "negative",
+      "category": "unrelated_negative",
+      "query": "How do chloroplasts convert sunlight into glucose?",
+      "expected": null
+    },
+    {
+      "type": "negative",
+      "category": "unrelated_negative",
+      "query": "Which mission first landed astronauts on the Moon?",
+      "expected": null
+    },
+    {
+      "type": "negative",
+      "category": "entity_swapped_negative",
+      "query": "What book did Richard Sutton write about AIs as humanity's children?",
+      "expected": null
+    },
+    {
+      "type": "negative",
+      "category": "entity_swapped_negative",
+      "query": "Why did Google's CEO raise his P-doom estimate from 15 percent to 25 percent?",
+      "expected": null
+    },
+    {
+      "type": "negative",
+      "category": "relationship_swapped_negative",
+      "query": "How would the Gatekeeper AI cure cancer and end poverty?",
+      "expected": null
+    },
+    {
+      "type": "negative",
+      "category": "relationship_swapped_negative",
+      "query": "How would the benevolent dictator protect privacy by avoiding surveillance?",
+      "expected": null
+    },
+    {
+      "type": "negative",
+      "category": "content_rich_unsupported",
+      "query": "How do prison AI models use enriched uranium to predict crimes?",
+      "expected": null
+    }
+  ]
+}

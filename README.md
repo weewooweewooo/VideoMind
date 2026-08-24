@@ -1,9 +1,9 @@
 # VideoMind
 
 VideoMind transcribes one local media file and retrieves the strongest
-transcript chunk as focused evidence for a question. It uses deterministic
-lexical retrieval and returns transcript evidence rather than generating an
-answer.
+transcript chunk as the anchor for focused evidence. It uses deterministic
+lexical retrieval, expands the returned context to nearby sentence boundaries,
+and returns transcript evidence rather than generating an answer.
 
 ## Architecture
 
@@ -14,7 +14,8 @@ local media file
 -> timestamped transcript chunks
 -> BM25S tokenization with English stopwords and stemming
 -> BM25S chunk retrieval
--> exact transcript chunk evidence
+-> bounded punctuation-based evidence expansion
+-> focused evidence
 ```
 
 The core flow is divided across these modules:
@@ -92,7 +93,10 @@ not add conversation memory.
 Chunks and questions use BM25S tokenization with built-in English stopwords and
 the supported English stemmer. The retriever discards non-positive scores,
 then orders chunks by score and chunk ID for deterministic results. The
-highest-ranked chunk text is returned exactly as it appears in the transcript.
+highest-ranked chunk remains unchanged as the retrieval anchor. Focused evidence
+may add contiguous original transcript segments to reach sentence punctuation,
+or the start or end of the transcript when punctuation is absent, up to 35
+words independently before and after the anchor.
 
 Full chunk text, IDs, timestamps, and raw BM25 scores remain available through
 the internal `search()` API but are not included in the focused CLI response.
@@ -141,6 +145,7 @@ or a persistent retrieval index.
 BM25 remains keyword-based, so it does not understand synonyms or semantic
 relationships. Strongly paraphrased or unrelated questions may return weak or
 coincidental lexical evidence. BM25 scores are ranking values, not confidence
-values. Only one transcript chunk is returned, so useful surrounding context
-may be omitted. Transcription also depends on local hardware, media
-compatibility, and model availability.
+values. Only the highest-ranked chunk anchors focused evidence, and missing or
+distant punctuation can prevent surrounding context from being added.
+Transcription also depends on local hardware, media compatibility, and model
+availability.

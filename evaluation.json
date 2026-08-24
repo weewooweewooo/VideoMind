@@ -1,12 +1,10 @@
 {
   "video_path": "data/test2.mp4",
-  "before_migration_baseline": {
-    "positive_queries": 9,
-    "rank_1": 7,
-    "top_3": 7,
-    "mrr": 0.809,
-    "negative_queries": 3,
-    "negative_false_positives": 2
+  "transcript_fixture": {
+    "path": "data/test2.small.transcript.json",
+    "sha256": "ac8cc094c06eedd52dc2d1aaa1a8e235a0671ce9d996767327d07080aa3e4a7b",
+    "segment_count": 710,
+    "chunk_count": 78
   },
   "queries": [
     {

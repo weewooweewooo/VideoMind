@@ -4,15 +4,106 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from src.ingestion import ingest_video
+from src.ingestion import compile_transcript_text, ingest_video
 from src.retrieval import build_retriever
 
 
 _NO_EVIDENCE_MESSAGE = "No relevant evidence found in the video."
+_EVIDENCE_EXPANSION_WORD_CAP = 35
+_TERMINAL_ENDING = re.compile(r"""[.?!](?:[\"'\u2019\u201d)\]}]+)?$""")
+
+
+def _has_terminal_ending(text: str) -> bool:
+    return bool(_TERMINAL_ENDING.search(text.rstrip()))
+
+
+def _find_anchor_segment_span(
+    anchor: Mapping[str, Any],
+    segments: Sequence[Mapping[str, Any]],
+) -> tuple[int, int] | None:
+    """Map one retrieved chunk exactly to its original contiguous segments."""
+    matches: list[tuple[int, int]] = []
+    anchor_start = float(anchor["start"])
+    anchor_end = float(anchor["end"])
+    anchor_text = str(anchor["text"])
+
+    for start_index, segment in enumerate(segments):
+        if float(segment["start"]) != anchor_start:
+            continue
+        for end_index in range(start_index, len(segments)):
+            segment_end = float(segments[end_index]["end"])
+            if segment_end > anchor_end:
+                break
+            if (
+                segment_end == anchor_end
+                and compile_transcript_text(segments[start_index : end_index + 1])
+                == anchor_text
+            ):
+                matches.append((start_index, end_index))
+
+    return matches[0] if len(matches) == 1 else None
+
+
+def _segment_word_count(segments: Sequence[Mapping[str, Any]]) -> int:
+    return sum(len(str(segment["text"]).split()) for segment in segments)
+
+
+def _expand_evidence(
+    anchor: Mapping[str, Any],
+    segments: Sequence[Mapping[str, Any]],
+) -> str:
+    """Expand an immutable retrieval anchor to bounded sentence boundaries."""
+    anchor_text = str(anchor["text"])
+    try:
+        anchor_span = _find_anchor_segment_span(anchor, segments)
+    except (KeyError, TypeError, ValueError):
+        return anchor_text
+    if anchor_span is None:
+        return anchor_text
+
+    anchor_start, anchor_end = anchor_span
+    expanded_start = anchor_start
+    expanded_end = anchor_end
+
+    if (
+        anchor_start > 0
+        and not _has_terminal_ending(str(segments[anchor_start - 1]["text"]))
+    ):
+        cursor = anchor_start - 1
+        while cursor >= 0 and not _has_terminal_ending(
+            str(segments[cursor]["text"])
+        ):
+            cursor -= 1
+        proposed_start = cursor + 1
+        if (
+            _segment_word_count(segments[proposed_start:anchor_start])
+            <= _EVIDENCE_EXPANSION_WORD_CAP
+        ):
+            expanded_start = proposed_start
+
+    if (
+        anchor_end < len(segments) - 1
+        and not _has_terminal_ending(str(segments[anchor_end]["text"]))
+    ):
+        cursor = anchor_end + 1
+        while cursor < len(segments) - 1 and not _has_terminal_ending(
+            str(segments[cursor]["text"])
+        ):
+            cursor += 1
+        if (
+            _segment_word_count(segments[anchor_end + 1 : cursor + 1])
+            <= _EVIDENCE_EXPANSION_WORD_CAP
+        ):
+            expanded_end = cursor
+
+    if expanded_start == anchor_start and expanded_end == anchor_end:
+        return anchor_text
+    return compile_transcript_text(segments[expanded_start : expanded_end + 1])
 
 
 class _VideoMindSession:
@@ -24,9 +115,15 @@ class _VideoMindSession:
 
     def query(self, question: str) -> dict[str, Any]:
         results = self.retriever.search(question, top_k=1)
+        focused_evidence = None
+        if results:
+            focused_evidence = _expand_evidence(
+                results[0],
+                self.transcript["segments"],
+            )
         return {
             "query": question,
-            "focused_evidence": results[0]["text"] if results else None,
+            "focused_evidence": focused_evidence,
         }
 
 

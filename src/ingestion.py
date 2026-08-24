@@ -238,14 +238,17 @@ def _save_cache(
         raise
 
 
-def _prepare_transcript(
-    transcript: Mapping[str, Any], video_path: Path
+def prepare_transcript(
+    transcript: Mapping[str, Any], video_path: str | Path
 ) -> dict[str, Any]:
-    chunks = _build_chunks(transcript["segments"])
+    """Normalize and chunk an existing transcript without file or ASR access."""
+    segments = _normalize_segments(transcript["segments"])
+    chunks = _build_chunks(segments)
     return {
         **transcript,
+        "segments": segments,
         "video": str(video_path),
-        "segment_count": len(transcript["segments"]),
+        "segment_count": len(segments),
         "chunk_count": len(chunks),
         "chunks": chunks,
     }
@@ -267,4 +270,4 @@ def ingest_video(video_path: str | Path) -> dict[str, Any]:
     if transcript is None:
         transcript = _transcribe_video(path)
         _save_cache(cache_path, source, profile, transcript)
-    return _prepare_transcript(transcript, path)
+    return prepare_transcript(transcript, path)
