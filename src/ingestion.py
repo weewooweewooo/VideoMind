@@ -1,4 +1,4 @@
-"""Local-video transcription, chunking, and transcript caching."""
+"""Local-video transcription, segment normalization, and transcript caching."""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Any
 
 from src.config import (
-    TRANSCRIPT_CHUNK_WORDS,
     WHISPER_BEAM_SIZE,
     WHISPER_COMPUTE_TYPE,
     WHISPER_DEVICE,
@@ -61,50 +60,6 @@ def _normalize_segments(segments: Iterable[Any]) -> list[dict[str, str | float]]
     if not normalized:
         raise ValueError("Transcript contains no usable segments")
     return normalized
-
-
-def compile_transcript_text(segments: Iterable[Any]) -> str:
-    """Validate timestamped segments and join their normalized text on demand."""
-    normalized = _normalize_segments(segments)
-    return " ".join(str(segment["text"]) for segment in normalized)
-
-
-def compile_transcript(segments: Iterable[Any]) -> dict[str, str | float]:
-    """Return one timestamped transcript derived from validated segments."""
-    normalized = _normalize_segments(segments)
-    return {
-        "start": float(normalized[0]["start"]),
-        "end": float(normalized[-1]["end"]),
-        "text": compile_transcript_text(normalized),
-    }
-
-
-def _build_chunks(segments: list[dict[str, str | float]]) -> list[dict[str, Any]]:
-    """Build fixed deterministic chunks without reusing transcript segments."""
-    chunks: list[dict[str, str | float]] = []
-    current: list[dict[str, str | float]] = []
-    current_words = 0
-
-    def flush() -> None:
-        nonlocal current, current_words
-        chunks.append(
-            {
-                "start": float(current[0]["start"]),
-                "end": float(current[-1]["end"]),
-                "text": compile_transcript_text(current),
-            }
-        )
-        current = []
-        current_words = 0
-
-    for segment in segments:
-        segment_words = len(str(segment["text"]).split())
-        if current and current_words + segment_words > TRANSCRIPT_CHUNK_WORDS:
-            flush()
-        current.append(segment)
-        current_words += segment_words
-    flush()
-    return chunks
 
 
 def _transcribe_video(video_path: Path) -> dict[str, Any]:
@@ -239,23 +194,17 @@ def _save_cache(
 
 
 def prepare_transcript(
-    transcript: Mapping[str, Any], video_path: str | Path
-) -> dict[str, Any]:
-    """Normalize and chunk an existing transcript without file or ASR access."""
-    segments = _normalize_segments(transcript["segments"])
-    chunks = _build_chunks(segments)
-    return {
-        **transcript,
-        "segments": segments,
-        "video": str(video_path),
-        "segment_count": len(segments),
-        "chunk_count": len(chunks),
-        "chunks": chunks,
-    }
+    transcript: Mapping[str, Any],
+) -> list[dict[str, str | float]]:
+    """Return validated timestamped segments without file or ASR access."""
+    raw_segments = transcript.get("segments")
+    if not isinstance(raw_segments, list):
+        raise ValueError("Transcript must contain a segment list")
+    return _normalize_segments(raw_segments)
 
 
-def ingest_video(video_path: str | Path) -> dict[str, Any]:
-    """Validate, cache or transcribe, chunk, and return one local video."""
+def ingest_video(video_path: str | Path) -> list[dict[str, str | float]]:
+    """Validate, cache or transcribe, and return clean timestamped segments."""
     if not isinstance(video_path, (str, Path)) or not str(video_path).strip():
         raise ValueError("A local video path is required")
     path = Path(video_path).expanduser().resolve()
@@ -270,4 +219,4 @@ def ingest_video(video_path: str | Path) -> dict[str, Any]:
     if transcript is None:
         transcript = _transcribe_video(path)
         _save_cache(cache_path, source, profile, transcript)
-    return prepare_transcript(transcript, path)
+    return prepare_transcript(transcript)

@@ -1,32 +1,23 @@
 # VideoMind
 
-VideoMind transcribes one local media file and retrieves the strongest
-transcript chunk as the anchor for focused evidence. It uses deterministic
-lexical retrieval, expands the returned context to nearby sentence boundaries,
-and returns transcript evidence rather than generating an answer.
+VideoMind transcribes one local media file into validated timestamped segments.
+It stops at the clean Faster-Whisper segment output and does not build a
+downstream text representation.
 
 ## Architecture
 
 ```text
 local media file
 -> Faster-Whisper transcription
--> stable transcript cache
--> timestamped transcript chunks
--> BM25S tokenization with English stopwords and stemming
--> BM25S chunk retrieval
--> bounded punctuation-based evidence expansion
--> focused evidence
+-> validated and normalized timestamped segments
 ```
 
-The core flow is divided across these modules:
+The transcript cache avoids repeating expensive transcription. Cached entries
+contain the source identity, fixed Faster-Whisper profile, language, duration,
+and normalized segments. They do not contain downstream derived objects.
 
-- `ingestion.py`: validates a local path, transcribes the media lazily, reads
-  and writes the transcript cache, validates timestamps, and builds chunks.
-- `retrieval.py`: tokenizes text with BM25S, builds the in-memory chunk index,
-  and deterministically ranks transcript chunks.
-- `videomind.py`: orchestrates the CLI, reuses one prepared session for
-  interactive questions, and prints plain-text or JSON output.
-- `config.py`: contains transcription, chunking, and retrieval defaults.
+Sentence reconstruction is intentionally the next development stage and is not
+implemented yet.
 
 ## Install
 
@@ -38,80 +29,47 @@ py -m venv venv
 python -m pip install -r requirements.txt
 ```
 
-`requirements.txt` provides Faster-Whisper transcription and BM25S retrieval.
 The first use of the configured Faster-Whisper `small` model may download model
 files. Faster-Whisper reads supported media directly through PyAV; VideoMind
 does not create an intermediate WAV file.
 
 ## Command-line usage
 
-Pass a local media path followed by a question. Plain text is the default
-output:
+Pass one local media path:
 
 ```powershell
-py -3.13 -m src.videomind .\data\test1.mp4 "What did HCA automate?"
+py -3.13 -m src.videomind .\data\test1.mp4
 ```
 
-When no positive-scoring transcript evidence is found, plain-text mode prints:
-
-```text
-No relevant evidence found in the video.
-```
-
-Use `--json` for a single-line JSON object:
-
-```powershell
-py -3.13 -m src.videomind .\data\test1.mp4 "What did HCA automate?" --json
-```
+The command prints a JSON array of clean timestamped segments:
 
 ```json
-{"query": "What did HCA automate?", "focused_evidence": "Exact transcript evidence."}
+[
+  {
+    "start": 0.0,
+    "end": 4.2,
+    "text": "Normalized transcript text."
+  }
+]
 ```
 
-Use `--pretty` with `--json` for indented JSON:
-
-```powershell
-py -3.13 -m src.videomind .\data\test1.mp4 "What did HCA automate?" --json --pretty
-```
-
-`--pretty` affects JSON formatting only. JSON mode preserves the query and uses
-`null` when no evidence is found.
-
-## Interactive use
-
-```powershell
-py -3.13 -m src.videomind .\data\test1.mp4 --interactive
-```
-
-The media file is ingested once, and the prepared transcript, BM25S tokens,
-and chunk index are reused for each independent question. Use `:help` for
-interactive commands and `:quit` or `:exit` to finish. Interactive mode does
-not add conversation memory.
-
-## How retrieval works
-
-Chunks and questions use BM25S tokenization with built-in English stopwords and
-the supported English stemmer. The retriever discards non-positive scores,
-then orders chunks by score and chunk ID for deterministic results. The
-highest-ranked chunk remains unchanged as the retrieval anchor. Focused evidence
-may add contiguous original transcript segments to reach sentence punctuation,
-or the start or end of the transcript when punctuation is absent, up to 35
-words independently before and after the anchor.
-
-Full chunk text, IDs, timestamps, and raw BM25 scores remain available through
-the internal `search()` API but are not included in the focused CLI response.
+Each segment has finite, non-negative, forward-moving timestamps and non-empty
+whitespace-normalized text. Segments remain in deterministic time order.
 
 ## Transcript cache
 
 VideoMind uses one inspectable JSON cache file per normalized, resolved local
 media path. A cache entry is reused only when the file size, nanosecond
 modification time, and fixed Faster-Whisper profile still match. Changing or
-moving the media file therefore causes a fresh transcription. Cache entries
-are written atomically.
+moving the media file therefore causes a fresh transcription. Cache entries are
+written atomically.
 
 On Windows, the cache is stored under
 `%LOCALAPPDATA%\VideoMind\cache`. On other platforms, it is stored under
 `~/.cache/videomind`.
+
+Faster-Whisper is imported only when a cache miss requires transcription, so
+importing VideoMind or using a warm cache does not load the model.
 
 ## Source structure
 
@@ -119,33 +77,14 @@ On Windows, the cache is stored under
 src/
 |-- config.py
 |-- ingestion.py
-|-- retrieval.py
 `-- videomind.py
 ```
 
-Faster-Whisper is imported only when a cache miss requires transcription, so
-importing VideoMind or using a warm cache does not load the model.
+- `config.py` contains the fixed Faster-Whisper profile.
+- `ingestion.py` validates the local path, handles transcription and caching,
+  and returns normalized segments.
+- `videomind.py` is the single command-line entry point.
 
-## Current capabilities
-
-- Local media input.
-- Direct Faster-Whisper transcription.
-- Persistent transcript caching.
-- Timestamped transcript chunking.
-- BM25S tokenization with English stopwords and stemming.
-- Deterministic BM25S chunk retrieval.
-- Plain-text, JSON, and interactive CLI modes.
-
-## Current limitations
-
-VideoMind does not provide semantic retrieval, answer generation, speaker
-diarization, main-topic analysis, visual understanding, multi-video indexing,
-or a persistent retrieval index.
-
-BM25 remains keyword-based, so it does not understand synonyms or semantic
-relationships. Strongly paraphrased or unrelated questions may return weak or
-coincidental lexical evidence. BM25 scores are ranking values, not confidence
-values. Only the highest-ranked chunk anchors focused evidence, and missing or
-distant punctuation can prevent surrounding context from being added.
-Transcription also depends on local hardware, media compatibility, and model
-availability.
+The frozen `data/test2.small.transcript.json` fixture is retained for the next
+separately authorized sentence-reconstruction stage without rerunning
+Faster-Whisper. VideoMind currently stops before that stage.

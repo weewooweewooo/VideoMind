@@ -11,9 +11,9 @@ Perform a review of the current working tree, not a general development pass.
 
 1. Read the applicable `AGENTS.md`, then capture `git status --short` and identify staged, unstaged, and untracked changes. Treat pre-existing changes as part of the review scope unless the user narrows it.
 2. Inspect the complete relevant diff against `HEAD`, including staged changes. Read untracked files directly because Git does not include them in ordinary diffs. Check the final combined file state, not only individual diff fragments.
-3. Read enough surrounding code and callers to understand each change before judging it. Follow affected ingestion, chunking, retrieval, evaluation, cache, and CLI contracts when relevant.
-4. Look for concrete correctness defects, regressions, edge cases, accidental behavior changes, duplication, unjustified abstractions, and unrelated modified files. Verify that the implementation follows `AGENTS.md` and preserves deterministic retrieval and public contracts where applicable.
-5. Run the smallest useful existing checks for the files and behavior changed. For retrieval changes, use the repository evaluator when its required fixture is available. Run `git diff --check`. Do not add dependencies or trigger expensive transcription merely to broaden validation.
+3. Read enough surrounding code and callers to understand each change before judging it. Follow affected transcription, segment normalization, cache, and CLI contracts when relevant.
+4. Look for concrete correctness defects, regressions, edge cases, accidental behavior changes, duplication, unjustified abstractions, and unrelated modified files. Verify that the implementation follows `AGENTS.md` and preserves deterministic segment output and public contracts where applicable.
+5. Run the smallest useful existing checks for the files and behavior changed. Use the frozen transcript fixture for normalization checks when applicable. Run `git diff --check`. Do not add dependencies or trigger expensive transcription merely to broaden validation.
 
 Initially review only. Do not edit, format, stage, discard, or otherwise modify the working tree unless the user separately asks for fixes.
 

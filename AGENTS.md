@@ -2,13 +2,13 @@
 
 ## Goal
 
-VideoMind is a lightweight, local-first video understanding and retrieval project.
+VideoMind is a lightweight, local-first video transcription project.
 
 Optimize for:
 
 * clarity,
-* retrieval quality,
-* useful AI functionality,
+* transcription quality,
+* useful timestamped output,
 * maintainability,
 * and strong portfolio value.
 
@@ -76,57 +76,39 @@ A developer should be able to identify quickly:
 ```text
 where video enters
 where transcription happens
-where chunks are created
-where indexing happens
-where retrieval happens
-where the final result is produced
+where transcript caching happens
+where segments are normalized
+where clean segments are output
 ```
 
 Rules:
 
 * Prefer modifying existing files over introducing new modules.
-* Keep ingestion, retrieval, orchestration, and other existing responsibilities separated according to the current structure.
+* Keep transcription, caching, normalization, and CLI responsibilities clear according to the current structure.
 * Do not move or rename existing files without a concrete reason.
 * Do not keep legacy or alternative implementations after a replacement has been verified unless they still serve a real purpose.
 * Avoid wrapper classes or helper modules that add indirection without meaningful behavior.
 
-## Retrieval and AI Changes
+## Transcription Changes
 
-Treat retrieval quality as something to measure rather than assume.
+Treat transcription quality as something to measure rather than assume.
 
-When changing retrieval, ranking, chunking, transcription, or AI-related behavior:
+When changing transcription or segment normalization:
 
 * Preserve deterministic behavior where practical.
-* Keep retrieval logic understandable and inspectable.
-* Avoid hidden heuristics unless explicitly justified by measured behavior.
-* Do not change thresholds, ranking semantics, chunking defaults, or public behavior incidentally.
-* Compare behavior before and after meaningful retrieval changes.
+* Keep normalization and validation understandable and inspectable.
+* Do not change the Faster-Whisper profile, cache identity, timestamps, or public output incidentally.
+* Compare behavior before and after meaningful transcription changes.
 * Prefer evidence from real project inputs over synthetic assumptions.
-* Reuse existing evaluation inputs and metrics when comparing retrieval changes.
-* Do not silently modify evaluation queries or expected results to make a change look better.
-* Change one major retrieval variable at a time so regressions can be attributed correctly.
-
-When comparing approaches such as BM25, TF-IDF, embeddings, hybrid retrieval, or reranking, consider:
-
-* Rank-1 accuracy,
-* Top-k accuracy,
-* MRR,
-* unrelated-query false positives,
-* timestamp/window usefulness,
-* latency,
-* dependency cost,
-* implementation complexity.
-
-Do not introduce a more complex retrieval method unless evaluation shows that the simpler approach has a meaningful limitation it solves.
+* Preserve frozen transcript fixtures when comparing downstream representations.
+* Change one major variable at a time so regressions can be attributed correctly.
 
 ## Evaluation
 
 Keep evaluation small and useful.
 
-* Prefer a small fixed set of real queries over large testing infrastructure.
-* Include exact queries, paraphrases, and unrelated negative queries where relevant.
-* Use existing evaluation files rather than creating additional benchmark frameworks.
-* Treat evaluation data as frozen during before/after comparisons.
+* Prefer small fixed real inputs over large testing infrastructure.
+* Treat frozen transcript data as immutable during comparisons.
 * Investigate regressions instead of tuning the evaluation set around them.
 * CLI smoke tests are acceptable when formal tests would add more maintenance than value.
 
@@ -146,7 +128,7 @@ After making changes:
 1. Run Ruff or the relevant formatting/lint checks on changed Python code.
 2. Run the smallest relevant CLI or functional smoke check.
 3. Exercise the behavior that was changed.
-4. For retrieval changes, run the existing evaluation when applicable.
+4. Exercise the cached path when it can be done without triggering transcription.
 5. Check for obvious regressions in adjacent behavior.
 6. Run `git diff --check`.
 7. Report what changed and what was validated.
@@ -173,5 +155,5 @@ Check that:
 * No unrelated behavior was changed.
 * New complexity is justified.
 * Relevant formatting and validation were performed.
-* Retrieval changes were compared against the existing baseline when applicable.
+* Transcription or normalization changes were compared against the existing baseline when applicable.
 * The final response is concise and identifies any remaining limitation.
