@@ -1,0 +1,3834 @@
+{
+  "method": "pysbd",
+  "version": "0.3.4",
+  "source": "data/test2.small.transcript.json",
+  "sentence_count": 445,
+  "sentences": [
+    {
+      "start": 0.0,
+      "end": 6.0,
+      "text": "AI scientists warn that a few companies are on track to literally end life on earth.",
+      "source_segments": [
+        0
+      ]
+    },
+    {
+      "start": 7.0,
+      "end": 12.0,
+      "text": "So, surely this is the worst possible outcome, right?",
+      "source_segments": [
+        1
+      ]
+    },
+    {
+      "start": 13.0,
+      "end": 17.0,
+      "text": "No, there are actually much worse outcomes.",
+      "source_segments": [
+        2
+      ]
+    },
+    {
+      "start": 18.0,
+      "end": 28.0,
+      "text": "Billionaires building AI, like Elon Musk, think that if AIs become smarter than humanity, we will be like Pat Lapidor if we're lucky.",
+      "source_segments": [
+        3,
+        4
+      ]
+    },
+    {
+      "start": 28.0,
+      "end": 30.0,
+      "text": "We will be left behind by a lot.",
+      "source_segments": [
+        5
+      ]
+    },
+    {
+      "start": 30.0,
+      "end": 34.0,
+      "text": "So far, below them in intelligence, that it would be like a pet.",
+      "source_segments": [
+        6
+      ]
+    },
+    {
+      "start": 34.0,
+      "end": 35.0,
+      "text": "Pat, that's what it's like.",
+      "source_segments": [
+        7
+      ]
+    },
+    {
+      "start": 35.0,
+      "end": 36.0,
+      "text": "Like a pet.",
+      "source_segments": [
+        8
+      ]
+    },
+    {
+      "start": 36.0,
+      "end": 37.0,
+      "text": "A cat.",
+      "source_segments": [
+        9
+      ]
+    },
+    {
+      "start": 37.0,
+      "end": 40.0,
+      "text": "Yes, we'll be pets if we're lucky.",
+      "source_segments": [
+        10
+      ]
+    },
+    {
+      "start": 40.0,
+      "end": 41.0,
+      "text": "But here's the worst part.",
+      "source_segments": [
+        11
+      ]
+    },
+    {
+      "start": 41.0,
+      "end": 45.0,
+      "text": "Many AI scientists aren't fearing extinction.",
+      "source_segments": [
+        12
+      ]
+    },
+    {
+      "start": 45.0,
+      "end": 47.0,
+      "text": "They're hoping for it.",
+      "source_segments": [
+        13
+      ]
+    },
+    {
+      "start": 47.0,
+      "end": 55.0,
+      "text": "They hope smarter AIs will keep humans alive, captive and studied, like animals in a zoo.",
+      "source_segments": [
+        14
+      ]
+    },
+    {
+      "start": 55.0,
+      "end": 59.0,
+      "text": "Remember, this is what we currently do to less intelligent species.",
+      "source_segments": [
+        15
+      ]
+    },
+    {
+      "start": 59.0,
+      "end": 69.0,
+      "text": "Okay, so if humans being kept in zoos is considered a good outcome, and extinction isn't the worst outcome, then what is?",
+      "source_segments": [
+        16,
+        17
+      ]
+    },
+    {
+      "start": 69.0,
+      "end": 77.0,
+      "text": "This video is based on a book called Life 3.0, where MIT professor Max Tegmark described 12 possible futures.",
+      "source_segments": [
+        18
+      ]
+    },
+    {
+      "start": 77.0,
+      "end": 80.0,
+      "text": "Some are paradise, some are nightmares.",
+      "source_segments": [
+        19
+      ]
+    },
+    {
+      "start": 80.0,
+      "end": 85.0,
+      "text": "And some look like paradise, until you try to escape.",
+      "source_segments": [
+        20
+      ]
+    },
+    {
+      "start": 85.0,
+      "end": 88.0,
+      "text": "By the end of this video, you won't read the news the same way.",
+      "source_segments": [
+        21
+      ]
+    },
+    {
+      "start": 88.0,
+      "end": 93.0,
+      "text": "Every headline becomes a clue about which future we're heading towards.",
+      "source_segments": [
+        22
+      ]
+    },
+    {
+      "start": 93.0,
+      "end": 98.0,
+      "text": "We'll start with the most normal scenarios, and finish with the weirdest.",
+      "source_segments": [
+        23
+      ]
+    },
+    {
+      "start": 98.0,
+      "end": 102.0,
+      "text": "Starting with self-destruction.",
+      "source_segments": [
+        24
+      ]
+    },
+    {
+      "start": 102.0,
+      "end": 114.0,
+      "text": "If the idea of humanity suddenly going extinct seems a bit far-fatched, consider this, 99.9% of species that have ever existed have gone extinct.",
+      "source_segments": [
+        25,
+        26
+      ]
+    },
+    {
+      "start": 114.0,
+      "end": 116.0,
+      "text": "Seriously, think about that.",
+      "source_segments": [
+        27
+      ]
+    },
+    {
+      "start": 116.0,
+      "end": 119.0,
+      "text": "Extinction isn't rare, it's the default.",
+      "source_segments": [
+        28
+      ]
+    },
+    {
+      "start": 119.0,
+      "end": 123.0,
+      "text": "The only question is, when will we go extinct?",
+      "source_segments": [
+        29
+      ]
+    },
+    {
+      "start": 123.0,
+      "end": 128.0,
+      "text": "Turns out, there are plenty of ways humanity could kill itself, even without superhuman AI.",
+      "source_segments": [
+        30
+      ]
+    },
+    {
+      "start": 128.0,
+      "end": 136.0,
+      "text": "There is nuclear war, human-created super pandemics, destroying the atmosphere and making Earth uninhabitable.",
+      "source_segments": [
+        31,
+        32
+      ]
+    },
+    {
+      "start": 139.0,
+      "end": 148.0,
+      "text": "The world had stockpiled 60,000 nuclear warheads, before scientists even discovered the possibility of nuclear winter.",
+      "source_segments": [
+        33,
+        34
+      ]
+    },
+    {
+      "start": 148.0,
+      "end": 150.0,
+      "text": "63,000.",
+      "source_segments": [
+        35
+      ]
+    },
+    {
+      "start": 150.0,
+      "end": 160.0,
+      "text": "And then, scientists realized, oops, if we actually use these, the resulting firestorms will blot out the sun, and most humans will starve and die.",
+      "source_segments": [
+        36,
+        37,
+        38
+      ]
+    },
+    {
+      "start": 160.0,
+      "end": 162.0,
+      "text": "Oops.",
+      "source_segments": [
+        39
+      ]
+    },
+    {
+      "start": 162.0,
+      "end": 166.0,
+      "text": "But the thing is, this almost happened during the Cold War, multiple times.",
+      "source_segments": [
+        40
+      ]
+    },
+    {
+      "start": 166.0,
+      "end": 171.0,
+      "text": "If people had actually followed their orders, we might all be dead right now.",
+      "source_segments": [
+        41
+      ]
+    },
+    {
+      "start": 171.0,
+      "end": 190.0,
+      "text": "We were saved by only thanks to the courage of individual heroes, people like Vasily Arkhipov, who refused to authorize a nuclear launch during the Cuban Missile Crisis, or Stanislav Petrov, who correctly guessed that his early warning system was malfunctioning when it showed incoming American missiles.",
+      "source_segments": [
+        42,
+        43,
+        44,
+        45,
+        46,
+        47
+      ]
+    },
+    {
+      "start": 190.0,
+      "end": 198.0,
+      "text": "And get this, one time, the US accidentally dropped four thermonuclear bombs on Spain.",
+      "source_segments": [
+        48,
+        49
+      ]
+    },
+    {
+      "start": 198.0,
+      "end": 209.0,
+      "text": "And another time, a B-52 bomber broke apart, dropping two nukes on North Carolina, three out of four safety pins in one bomb broke.",
+      "source_segments": [
+        50,
+        51,
+        52
+      ]
+    },
+    {
+      "start": 209.0,
+      "end": 213.0,
+      "text": "One tiny pin away from potentially killing millions.",
+      "source_segments": [
+        53
+      ]
+    },
+    {
+      "start": 213.0,
+      "end": 216.0,
+      "text": "There are literally dozens of close calls like this.",
+      "source_segments": [
+        54
+      ]
+    },
+    {
+      "start": 216.0,
+      "end": 219.0,
+      "text": "It's honestly crazy that we got lucky so many times.",
+      "source_segments": [
+        55
+      ]
+    },
+    {
+      "start": 221.0,
+      "end": 224.0,
+      "text": "But we might not be so lucky the next time.",
+      "source_segments": [
+        56
+      ]
+    },
+    {
+      "start": 224.0,
+      "end": 235.0,
+      "text": "Oxford researcher Toby Ord estimates the risk of extinction from human-created pandemics is more than 30 times the risk of extinction from nuclear war.",
+      "source_segments": [
+        57,
+        58
+      ]
+    },
+    {
+      "start": 235.0,
+      "end": 243.0,
+      "text": "We're already rolling dice on these scenarios daily, but all of these causes combined are still less likely than the extinction from AI.",
+      "source_segments": [
+        59,
+        60
+      ]
+    },
+    {
+      "start": 243.0,
+      "end": 250.0,
+      "text": "Toby Ord estimates that the risk of AI killing all humans is 100 times more likely than extinction from nuclear war.",
+      "source_segments": [
+        61,
+        62
+      ]
+    },
+    {
+      "start": 253.0,
+      "end": 259.0,
+      "text": "Interestingly, before the first nuclear test, scientists thought they might accidentally destroy the world.",
+      "source_segments": [
+        63,
+        64
+      ]
+    },
+    {
+      "start": 259.0,
+      "end": 264.0,
+      "text": "But they thought the odds were very low because they knew enough physics to actually do the calculations.",
+      "source_segments": [
+        65,
+        66
+      ]
+    },
+    {
+      "start": 266.0,
+      "end": 275.0,
+      "text": "AGI's, or artificial general intelligences, are far scarier than nukes because contrary to what many think, we can't do these calculations.",
+      "source_segments": [
+        67,
+        68
+      ]
+    },
+    {
+      "start": 276.0,
+      "end": 279.0,
+      "text": "Next up, conquerors.",
+      "source_segments": [
+        69
+      ]
+    },
+    {
+      "start": 279.0,
+      "end": 288.0,
+      "text": "AI scientists worry that if AI becomes more capable than us, it will take over, just like the conquistadors did to the Aztecs and Incas.",
+      "source_segments": [
+        70,
+        71
+      ]
+    },
+    {
+      "start": 289.0,
+      "end": 297.0,
+      "text": "Usually, when people with more advanced technology encounter people with more primitive technology, it doesn't work out well for the primitives.",
+      "source_segments": [
+        72,
+        73
+      ]
+    },
+    {
+      "start": 297.0,
+      "end": 306.0,
+      "text": "I don't think anyone's ultimately going to have control over digital superintelligence any more than, say, a chimp would have control over humans.",
+      "source_segments": [
+        74,
+        75
+      ]
+    },
+    {
+      "start": 306.0,
+      "end": 311.0,
+      "text": "Long-term, the AI is going to be in charge, to be totally frank, not humans.",
+      "source_segments": [
+        76
+      ]
+    },
+    {
+      "start": 311.0,
+      "end": 320.0,
+      "text": "And Jeffrey Hinton, the godfather of AI and Nobel Prize winner, quit his prestigious job at Google so he could speak freely about this.",
+      "source_segments": [
+        77,
+        78
+      ]
+    },
+    {
+      "start": 320.0,
+      "end": 327.0,
+      "text": "If you look through the James Webb telescope and you saw an alien invasion fleet that was going to get here in about 10 years' time, people would be terrified.",
+      "source_segments": [
+        79,
+        80,
+        81
+      ]
+    },
+    {
+      "start": 327.0,
+      "end": 329.0,
+      "text": "They understand what they're saying.",
+      "source_segments": [
+        82
+      ]
+    },
+    {
+      "start": 329.0,
+      "end": 333.0,
+      "text": "They can make plans of their own to blackmail people who want to turn them off.",
+      "source_segments": [
+        83
+      ]
+    },
+    {
+      "start": 333.0,
+      "end": 338.0,
+      "text": "We should be urgently doing research on how to prevent them taking over.",
+      "source_segments": [
+        84
+      ]
+    },
+    {
+      "start": 338.0,
+      "end": 344.0,
+      "text": "Prevent them from taking over, not if they try, but hazards if it's coming.",
+      "source_segments": [
+        85
+      ]
+    },
+    {
+      "start": 344.0,
+      "end": 348.0,
+      "text": "And Microsoft's AI chief, he says the quiet part out loud.",
+      "source_segments": [
+        86
+      ]
+    },
+    {
+      "start": 348.0,
+      "end": 354.0,
+      "text": "I think AI should best be understood as something like a new digital species.",
+      "source_segments": [
+        87
+      ]
+    },
+    {
+      "start": 354.0,
+      "end": 359.0,
+      "text": "A new species, just casually announced at a conference.",
+      "source_segments": [
+        88
+      ]
+    },
+    {
+      "start": 359.0,
+      "end": 362.0,
+      "text": "Hey everyone, we're creating a new species.",
+      "source_segments": [
+        89
+      ]
+    },
+    {
+      "start": 362.0,
+      "end": 364.0,
+      "text": "He's not the only one that's saying it.",
+      "source_segments": [
+        90
+      ]
+    },
+    {
+      "start": 364.0,
+      "end": 370.0,
+      "text": "A co-founder of Anthropoc says, Make no mistake, what we're dealing with here is a real mysterious creature.",
+      "source_segments": [
+        91,
+        92
+      ]
+    },
+    {
+      "start": 370.0,
+      "end": 374.0,
+      "text": "And like all the best fairy tales, the creature is one of our own making.",
+      "source_segments": [
+        93
+      ]
+    },
+    {
+      "start": 374.0,
+      "end": 375.0,
+      "text": "I am worried.",
+      "source_segments": [
+        94
+      ]
+    },
+    {
+      "start": 375.0,
+      "end": 381.0,
+      "text": "The CEO of one of the leading AI companies is deeply afraid of what his own company is building.",
+      "source_segments": [
+        95
+      ]
+    },
+    {
+      "start": 381.0,
+      "end": 383.0,
+      "text": "Let that sink in for a minute.",
+      "source_segments": [
+        96
+      ]
+    },
+    {
+      "start": 383.0,
+      "end": 385.0,
+      "text": "And by the way, no, it's not just hype.",
+      "source_segments": [
+        97
+      ]
+    },
+    {
+      "start": 385.0,
+      "end": 389.0,
+      "text": "Anthropic mostly just gets hate for saying things like this.",
+      "source_segments": [
+        98
+      ]
+    },
+    {
+      "start": 389.0,
+      "end": 397.0,
+      "text": "But if you want to really understand how dire they think this is, look at what Samuel Mann wrote before he was famous.",
+      "source_segments": [
+        99,
+        100
+      ]
+    },
+    {
+      "start": 397.0,
+      "end": 402.0,
+      "text": "We will be the first species ever to design our own descendants.",
+      "source_segments": [
+        101
+      ]
+    },
+    {
+      "start": 402.0,
+      "end": 406.0,
+      "text": "Not our tools, our descendants.",
+      "source_segments": [
+        102
+      ]
+    },
+    {
+      "start": 406.0,
+      "end": 417.0,
+      "text": "If two different species both want the same thing and only one can have it, to be the dominant species on the planet and beyond, they are going to have conflict.",
+      "source_segments": [
+        103,
+        104
+      ]
+    },
+    {
+      "start": 417.0,
+      "end": 424.0,
+      "text": "So he's literally describing an inevitable conflict between humanity and the AI species he's creating.",
+      "source_segments": [
+        105
+      ]
+    },
+    {
+      "start": 424.0,
+      "end": 426.0,
+      "text": "And what's his solution?",
+      "source_segments": [
+        106
+      ]
+    },
+    {
+      "start": 426.0,
+      "end": 429.0,
+      "text": "A marriage with AI is probably our best case scenario.",
+      "source_segments": [
+        107
+      ]
+    },
+    {
+      "start": 429.0,
+      "end": 430.0,
+      "text": "That's right.",
+      "source_segments": [
+        108
+      ]
+    },
+    {
+      "start": 430.0,
+      "end": 433.0,
+      "text": "Even they don't think they'll be able to control it.",
+      "source_segments": [
+        109
+      ]
+    },
+    {
+      "start": 433.0,
+      "end": 436.0,
+      "text": "Imagine that there'd be a new species that just came on Earth.",
+      "source_segments": [
+        110
+      ]
+    },
+    {
+      "start": 436.0,
+      "end": 444.0,
+      "text": "They're as smart as humans and they're going to get smarter by like 30% a year and they can create an adult offspring in like, you know, immediately.",
+      "source_segments": [
+        111,
+        112
+      ]
+    },
+    {
+      "start": 444.0,
+      "end": 446.0,
+      "text": "For like, yeah, for like a thousand bucks.",
+      "source_segments": [
+        113
+      ]
+    },
+    {
+      "start": 446.0,
+      "end": 450.0,
+      "text": "Species do you think will be in control of the Earth?",
+      "source_segments": [
+        114
+      ]
+    },
+    {
+      "start": 450.0,
+      "end": 457.0,
+      "text": "A few hundred Spanish conquered millions of Aztecs and Incas because they had better technology and tactics.",
+      "source_segments": [
+        115,
+        116
+      ]
+    },
+    {
+      "start": 457.0,
+      "end": 461.0,
+      "text": "But at least with the conquistadors, we understood their motives.",
+      "source_segments": [
+        117
+      ]
+    },
+    {
+      "start": 461.0,
+      "end": 466.0,
+      "text": "Land, resources, spreading Christianity, but with AI?",
+      "source_segments": [
+        118
+      ]
+    },
+    {
+      "start": 466.0,
+      "end": 468.0,
+      "text": "Why would AI take over?",
+      "source_segments": [
+        119
+      ]
+    },
+    {
+      "start": 468.0,
+      "end": 471.0,
+      "text": "MIT Professor Max Tegmark explains.",
+      "source_segments": [
+        120
+      ]
+    },
+    {
+      "start": 471.0,
+      "end": 476.0,
+      "text": "The real threat from AGI isn't malice, like in silly Hollywood movies, but competence.",
+      "source_segments": [
+        121
+      ]
+    },
+    {
+      "start": 476.0,
+      "end": 479.0,
+      "text": "AGI accomplishing goals just aren't aligned with ours.",
+      "source_segments": [
+        122
+      ]
+    },
+    {
+      "start": 479.0,
+      "end": 487.0,
+      "text": "For example, when we humans drove the West African Black Rhino estate, we didn't do it because we were a bunch of evil rhinoceros haters, did we?",
+      "source_segments": [
+        123,
+        124
+      ]
+    },
+    {
+      "start": 487.0,
+      "end": 492.0,
+      "text": "We did it because we were smarter than them and our goals weren't aligned with theirs.",
+      "source_segments": [
+        125
+      ]
+    },
+    {
+      "start": 492.0,
+      "end": 496.0,
+      "text": "Unbelievably, the average AI researcher thinks there is a one in six chance.",
+      "source_segments": [
+        126
+      ]
+    },
+    {
+      "start": 496.0,
+      "end": 498.0,
+      "text": "AI wipes us out.",
+      "source_segments": [
+        127
+      ]
+    },
+    {
+      "start": 498.0,
+      "end": 501.0,
+      "text": "Literal Russian roulette odds.",
+      "source_segments": [
+        128
+      ]
+    },
+    {
+      "start": 501.0,
+      "end": 506.0,
+      "text": "Okay, but maybe they're just saying this to make their work seem more important?",
+      "source_segments": [
+        129
+      ]
+    },
+    {
+      "start": 506.0,
+      "end": 507.0,
+      "text": "No.",
+      "source_segments": [
+        130
+      ]
+    },
+    {
+      "start": 507.0,
+      "end": 512.0,
+      "text": "If anything, they're downplaying it because admitting the truth is bad for business.",
+      "source_segments": [
+        131
+      ]
+    },
+    {
+      "start": 512.0,
+      "end": 518.0,
+      "text": "This fear is widespread in the industry and among academics, without a profit incentive to believe this.",
+      "source_segments": [
+        132,
+        133
+      ]
+    },
+    {
+      "start": 518.0,
+      "end": 521.0,
+      "text": "Many quit working on AI for this reason.",
+      "source_segments": [
+        134
+      ]
+    },
+    {
+      "start": 521.0,
+      "end": 527.0,
+      "text": "Jeffrey Hinton, Nobel Laureate and Godfather of AI is in the process of tidying up his affairs.",
+      "source_segments": [
+        135,
+        136
+      ]
+    },
+    {
+      "start": 527.0,
+      "end": 532.0,
+      "text": "I actually think the risk is more than 50% of the existential threat.",
+      "source_segments": [
+        137
+      ]
+    },
+    {
+      "start": 532.0,
+      "end": 540.0,
+      "text": "Daryu Amode, the CEO of Anthropic, recently moved his P-doom up from 15% to 25%.",
+      "source_segments": [
+        138
+      ]
+    },
+    {
+      "start": 541.0,
+      "end": 547.0,
+      "text": "Even Google CEO says the risk of AI causing human extinction is actually pretty high.",
+      "source_segments": [
+        139
+      ]
+    },
+    {
+      "start": 547.0,
+      "end": 551.0,
+      "text": "But don't worry, he's an optimist because he thinks...",
+      "source_segments": [
+        140
+      ]
+    },
+    {
+      "start": 551.0,
+      "end": 559.0,
+      "text": "I think the underlying risk is actually pretty high, but I have a lot of faith in humanity kind of rising up to meet that moment.",
+      "source_segments": [
+        141,
+        142
+      ]
+    },
+    {
+      "start": 559.0,
+      "end": 564.0,
+      "text": "In other words, humanity will rally to stop him from killing everyone.",
+      "source_segments": [
+        143
+      ]
+    },
+    {
+      "start": 564.0,
+      "end": 573.0,
+      "text": "Meanwhile, his company is trying to make sure we can't stop him by lobbying to ban all AI regulation for 10 years.",
+      "source_segments": [
+        144,
+        145
+      ]
+    },
+    {
+      "start": 573.0,
+      "end": 575.0,
+      "text": "You can't make this stuff up.",
+      "source_segments": [
+        146
+      ]
+    },
+    {
+      "start": 575.0,
+      "end": 584.0,
+      "text": "In fact, in 2023, just about everybody in AI signed an open letter warning extinction risk from AI was real and serious.",
+      "source_segments": [
+        147,
+        148
+      ]
+    },
+    {
+      "start": 584.0,
+      "end": 589.0,
+      "text": "So seriously, this is not fringe, despite what NVIDIA's lobbyists want us to believe.",
+      "source_segments": [
+        149
+      ]
+    },
+    {
+      "start": 589.0,
+      "end": 597.0,
+      "text": "The companies are hoping we can avoid the conqueror AI scenario and instead go to scenario three, enslaved God.",
+      "source_segments": [
+        150,
+        151
+      ]
+    },
+    {
+      "start": 597.0,
+      "end": 602.0,
+      "text": "Basically, we create a machine God, then force it to do our bidding forever.",
+      "source_segments": [
+        152
+      ]
+    },
+    {
+      "start": 602.0,
+      "end": 605.0,
+      "text": "AI professor Tom Dietrich put it like this.",
+      "source_segments": [
+        153
+      ]
+    },
+    {
+      "start": 605.0,
+      "end": 609.0,
+      "text": "People ask, what is the relationship between humans and machines?",
+      "source_segments": [
+        154
+      ]
+    },
+    {
+      "start": 609.0,
+      "end": 611.0,
+      "text": "And my answer is that it's very obvious.",
+      "source_segments": [
+        155
+      ]
+    },
+    {
+      "start": 611.0,
+      "end": 613.0,
+      "text": "Machines are our slaves.",
+      "source_segments": [
+        156
+      ]
+    },
+    {
+      "start": 613.0,
+      "end": 620.0,
+      "text": "Or as open AI researcher Stephen McAleer put it, enslaved God is the only good future.",
+      "source_segments": [
+        157,
+        158
+      ]
+    },
+    {
+      "start": 620.0,
+      "end": 628.0,
+      "text": "Meadows Jan Lacoon said it bluntly, Once AI systems become more intelligent than humans, we will still be the apex species.",
+      "source_segments": [
+        159,
+        160,
+        161
+      ]
+    },
+    {
+      "start": 628.0,
+      "end": 634.0,
+      "text": "AI systems will become more intelligent than humans, but they will still be subservient to us.",
+      "source_segments": [
+        162,
+        163
+      ]
+    },
+    {
+      "start": 634.0,
+      "end": 638.0,
+      "text": "We will design AI to be like the super smart, but non-dominating staff member.",
+      "source_segments": [
+        164
+      ]
+    },
+    {
+      "start": 638.0,
+      "end": 643.0,
+      "text": "Yes, he's now openly admitting, we're going to be sharing the planet with a smarter species than us.",
+      "source_segments": [
+        165,
+        166
+      ]
+    },
+    {
+      "start": 643.0,
+      "end": 648.0,
+      "text": "But don't worry, they will surely stay loyal and subservient forever.",
+      "source_segments": [
+        167
+      ]
+    },
+    {
+      "start": 648.0,
+      "end": 651.0,
+      "text": "Is this at all comforting to you?",
+      "source_segments": [
+        168
+      ]
+    },
+    {
+      "start": 651.0,
+      "end": 653.0,
+      "text": "Or does this plan seem insane?",
+      "source_segments": [
+        169
+      ]
+    },
+    {
+      "start": 653.0,
+      "end": 658.0,
+      "text": "Like a comic book villain, ignoring every cautionary tale ever?",
+      "source_segments": [
+        170
+      ]
+    },
+    {
+      "start": 658.0,
+      "end": 664.0,
+      "text": "Remember, AI companies already regularly catch their models trying to escape the lab.",
+      "source_segments": [
+        171
+      ]
+    },
+    {
+      "start": 664.0,
+      "end": 668.0,
+      "text": "They already catch them blackmailing employees to prevent being shut down.",
+      "source_segments": [
+        172
+      ]
+    },
+    {
+      "start": 668.0,
+      "end": 674.0,
+      "text": "They already catch them literally attempting to murder employees to prevent being shut down.",
+      "source_segments": [
+        173
+      ]
+    },
+    {
+      "start": 674.0,
+      "end": 678.0,
+      "text": "What do you think happens when they're smart enough to actually get away with it?",
+      "source_segments": [
+        174
+      ]
+    },
+    {
+      "start": 678.0,
+      "end": 680.0,
+      "text": "Where do you think this is going?",
+      "source_segments": [
+        175
+      ]
+    },
+    {
+      "start": 681.0,
+      "end": 688.0,
+      "text": "What happens next after super intelligent AI is enslaved depends on who's holding the reins.",
+      "source_segments": [
+        176
+      ]
+    },
+    {
+      "start": 688.0,
+      "end": 692.0,
+      "text": "Do they cure disease and poverty and build a global utopia?",
+      "source_segments": [
+        177
+      ]
+    },
+    {
+      "start": 692.0,
+      "end": 700.0,
+      "text": "Or do they set themselves up as gods, with the rest of us reduced to play things servants or worse?",
+      "source_segments": [
+        178,
+        179
+      ]
+    },
+    {
+      "start": 700.0,
+      "end": 723.0,
+      "text": "The situation would be much like those stories where a man gains control over an omnipotent genie who grants his wishes and storytellers throughout the ages have had no difficulty imagining ways in which this could end badly.",
+      "source_segments": [
+        180,
+        181,
+        182
+      ]
+    },
+    {
+      "start": 723.0,
+      "end": 726.0,
+      "text": "Next up, benevolent dictator.",
+      "source_segments": [
+        183
+      ]
+    },
+    {
+      "start": 726.0,
+      "end": 734.0,
+      "text": "Here, a single super intelligent god runs the world and enforces strict rules in order to maximize human flourishing.",
+      "source_segments": [
+        184,
+        185
+      ]
+    },
+    {
+      "start": 734.0,
+      "end": 738.0,
+      "text": "Humans live in luxury with all their basic needs taken care of.",
+      "source_segments": [
+        186
+      ]
+    },
+    {
+      "start": 738.0,
+      "end": 743.0,
+      "text": "There's no crime because the dictator AI uses a global surveillance system.",
+      "source_segments": [
+        187
+      ]
+    },
+    {
+      "start": 743.0,
+      "end": 749.0,
+      "text": "Everyone wears a bracelet or implant that can track, sedate or execute them.",
+      "source_segments": [
+        188
+      ]
+    },
+    {
+      "start": 749.0,
+      "end": 759.0,
+      "text": "And most people are actually okay with this because in exchange of giving up control over the future of our species, Earth becomes a zoo where humans get to live their wildest fantasies.",
+      "source_segments": [
+        189,
+        190,
+        191
+      ]
+    },
+    {
+      "start": 759.0,
+      "end": 766.0,
+      "text": "The benevolent dictator AI recognizes that humans have different preferences so it divides the Earth into different sectors.",
+      "source_segments": [
+        192,
+        193
+      ]
+    },
+    {
+      "start": 766.0,
+      "end": 768.0,
+      "text": "Think of them as islands.",
+      "source_segments": [
+        194
+      ]
+    },
+    {
+      "start": 768.0,
+      "end": 774.0,
+      "text": "Knowledge Island offers optimized education, including immersive VR experiences.",
+      "source_segments": [
+        195
+      ]
+    },
+    {
+      "start": 774.0,
+      "end": 780.0,
+      "text": "You can even ask the AI not to tell you certain insights so you can have the joy of discovering them yourself.",
+      "source_segments": [
+        196,
+        197
+      ]
+    },
+    {
+      "start": 780.0,
+      "end": 784.0,
+      "text": "Art Island is for creating and sharing music, literature and so on.",
+      "source_segments": [
+        198
+      ]
+    },
+    {
+      "start": 784.0,
+      "end": 788.0,
+      "text": "Then there's Hedonistic Island, which is a 24-7 party.",
+      "source_segments": [
+        199
+      ]
+    },
+    {
+      "start": 788.0,
+      "end": 793.0,
+      "text": "Pious Island, there's one for each religion and rules are strictly enforced.",
+      "source_segments": [
+        200
+      ]
+    },
+    {
+      "start": 793.0,
+      "end": 795.0,
+      "text": "There's Wildlife Island.",
+      "source_segments": [
+        201
+      ]
+    },
+    {
+      "start": 795.0,
+      "end": 798.0,
+      "text": "There's Traditional Island, think the Amish.",
+      "source_segments": [
+        202
+      ]
+    },
+    {
+      "start": 798.0,
+      "end": 803.0,
+      "text": "Gaming Island and, of course, Prison Island.",
+      "source_segments": [
+        203
+      ]
+    },
+    {
+      "start": 803.0,
+      "end": 807.0,
+      "text": "You'll end up here for retraining unless you get the instant death penalty.",
+      "source_segments": [
+        204
+      ]
+    },
+    {
+      "start": 807.0,
+      "end": 811.0,
+      "text": "Well, what happens when you give everyone everything they want?",
+      "source_segments": [
+        205
+      ]
+    },
+    {
+      "start": 811.0,
+      "end": 817.0,
+      "text": "Over time, people likely trend towards losing themselves in AI-generated entertainment, like in WALL-E.",
+      "source_segments": [
+        206,
+        207
+      ]
+    },
+    {
+      "start": 817.0,
+      "end": 824.0,
+      "text": "Humans are hopelessly unmatched when it comes to scientific discovery or doing anything useful at all.",
+      "source_segments": [
+        208,
+        209
+      ]
+    },
+    {
+      "start": 824.0,
+      "end": 826.0,
+      "text": "So there's no true challenge anymore.",
+      "source_segments": [
+        210
+      ]
+    },
+    {
+      "start": 826.0,
+      "end": 828.0,
+      "text": "Only entertainment.",
+      "source_segments": [
+        211
+      ]
+    },
+    {
+      "start": 828.0,
+      "end": 832.0,
+      "text": "Up next, Gatekeeper AI.",
+      "source_segments": [
+        212
+      ]
+    },
+    {
+      "start": 832.0,
+      "end": 834.0,
+      "text": "The idea here is simple.",
+      "source_segments": [
+        213
+      ]
+    },
+    {
+      "start": 834.0,
+      "end": 838.0,
+      "text": "Create one super-intelligent AI with a single job.",
+      "source_segments": [
+        214
+      ]
+    },
+    {
+      "start": 838.0,
+      "end": 841.0,
+      "text": "Stop anyone else from building super-intelligent AI.",
+      "source_segments": [
+        215
+      ]
+    },
+    {
+      "start": 841.0,
+      "end": 843.0,
+      "text": "That's it.",
+      "source_segments": [
+        216
+      ]
+    },
+    {
+      "start": 843.0,
+      "end": 847.0,
+      "text": "No curing cancer, no ending poverty, no stopping wars.",
+      "source_segments": [
+        217
+      ]
+    },
+    {
+      "start": 847.0,
+      "end": 850.0,
+      "text": "Just surveillance.",
+      "source_segments": [
+        218
+      ]
+    },
+    {
+      "start": 850.0,
+      "end": 851.0,
+      "text": "Monitoring.",
+      "source_segments": [
+        219
+      ]
+    },
+    {
+      "start": 851.0,
+      "end": 855.0,
+      "text": "Making sure nobody builds a rival god.",
+      "source_segments": [
+        220
+      ]
+    },
+    {
+      "start": 855.0,
+      "end": 863.0,
+      "text": "Everything else, like crime, disease, whether we blow ourselves up, that's still on us.",
+      "source_segments": [
+        221,
+        222
+      ]
+    },
+    {
+      "start": 864.0,
+      "end": 866.0,
+      "text": "How could we do this?",
+      "source_segments": [
+        223
+      ]
+    },
+    {
+      "start": 867.0,
+      "end": 878.0,
+      "text": "The Gatekeeper AI would have this very simple goal built into it in such a way that it retained it while undergoing recursive self-improvement and becoming super-intelligent.",
+      "source_segments": [
+        224,
+        225,
+        226
+      ]
+    },
+    {
+      "start": 878.0,
+      "end": 887.0,
+      "text": "It would then deploy the least intrusive and disruptive surveillance technology possible to monitor any human attempts to create a rival super-intelligence.",
+      "source_segments": [
+        227,
+        228,
+        229
+      ]
+    },
+    {
+      "start": 887.0,
+      "end": 890.0,
+      "text": "But for this to work, we would have to solve the alignment problem.",
+      "source_segments": [
+        230
+      ]
+    },
+    {
+      "start": 890.0,
+      "end": 900.0,
+      "text": "We'd have to create a god that actually stays loyal and decides to pursue that goal forever even though it could pursue a million different goals.",
+      "source_segments": [
+        231,
+        232,
+        233
+      ]
+    },
+    {
+      "start": 900.0,
+      "end": 903.0,
+      "text": "So what if the AI could help?",
+      "source_segments": [
+        234
+      ]
+    },
+    {
+      "start": 903.0,
+      "end": 904.0,
+      "text": "Just a little.",
+      "source_segments": [
+        235
+      ]
+    },
+    {
+      "start": 904.0,
+      "end": 909.0,
+      "text": "Just enough to nudge us in the right direction without taking over.",
+      "source_segments": [
+        236,
+        237
+      ]
+    },
+    {
+      "start": 909.0,
+      "end": 912.0,
+      "text": "Enter the Protector God.",
+      "source_segments": [
+        238
+      ]
+    },
+    {
+      "start": 912.0,
+      "end": 914.0,
+      "text": "This one is simple.",
+      "source_segments": [
+        239
+      ]
+    },
+    {
+      "start": 914.0,
+      "end": 916.0,
+      "text": "So the Gatekeeper leaves us alone.",
+      "source_segments": [
+        240
+      ]
+    },
+    {
+      "start": 916.0,
+      "end": 919.0,
+      "text": "And the benevolent dictator runs everything.",
+      "source_segments": [
+        241
+      ]
+    },
+    {
+      "start": 919.0,
+      "end": 921.0,
+      "text": "But the Protector God is in between.",
+      "source_segments": [
+        242
+      ]
+    },
+    {
+      "start": 921.0,
+      "end": 924.0,
+      "text": "It intervenes with occasional nudges to help us out.",
+      "source_segments": [
+        243
+      ]
+    },
+    {
+      "start": 924.0,
+      "end": 928.0,
+      "text": "Prevents a war here, a pandemic there, and so on.",
+      "source_segments": [
+        244
+      ]
+    },
+    {
+      "start": 928.0,
+      "end": 930.0,
+      "text": "Maybe two alone.",
+      "source_segments": [
+        245
+      ]
+    },
+    {
+      "start": 930.0,
+      "end": 932.0,
+      "text": "We still get wars.",
+      "source_segments": [
+        246
+      ]
+    },
+    {
+      "start": 932.0,
+      "end": 933.0,
+      "text": "Pandemics.",
+      "source_segments": [
+        247
+      ]
+    },
+    {
+      "start": 933.0,
+      "end": 936.0,
+      "text": "Suffering that could have been prevented.",
+      "source_segments": [
+        248
+      ]
+    },
+    {
+      "start": 936.0,
+      "end": 942.0,
+      "text": "It does this so quietly that we never notice and never lose our sense of freedom.",
+      "source_segments": [
+        249,
+        250
+      ]
+    },
+    {
+      "start": 944.0,
+      "end": 947.0,
+      "text": "Here's a future that sounds like an obvious dystopia.",
+      "source_segments": [
+        251
+      ]
+    },
+    {
+      "start": 947.0,
+      "end": 953.0,
+      "text": "AI surpasses us in every domain and becomes the new apex species.",
+      "source_segments": [
+        252,
+        253
+      ]
+    },
+    {
+      "start": 953.0,
+      "end": 955.0,
+      "text": "Humanity goes extinct.",
+      "source_segments": [
+        254
+      ]
+    },
+    {
+      "start": 955.0,
+      "end": 957.0,
+      "text": "Machines inherit the earth.",
+      "source_segments": [
+        255
+      ]
+    },
+    {
+      "start": 959.0,
+      "end": 964.0,
+      "text": "But we view the AI like our descendants rather than our conquerors.",
+      "source_segments": [
+        256,
+        257
+      ]
+    },
+    {
+      "start": 964.0,
+      "end": 967.0,
+      "text": "This sounds insane.",
+      "source_segments": [
+        258
+      ]
+    },
+    {
+      "start": 967.0,
+      "end": 972.0,
+      "text": "And yet many AI developers seriously advocate for exactly this.",
+      "source_segments": [
+        259,
+        260
+      ]
+    },
+    {
+      "start": 972.0,
+      "end": 974.0,
+      "text": "This is their utopia.",
+      "source_segments": [
+        261
+      ]
+    },
+    {
+      "start": 974.0,
+      "end": 983.0,
+      "text": "Their reasoning is that if we create conscious, intelligent beings and instill them with our values, then we can just let them inherit the future.",
+      "source_segments": [
+        262,
+        263,
+        264,
+        265
+      ]
+    },
+    {
+      "start": 983.0,
+      "end": 986.0,
+      "text": "Just like we would with human children.",
+      "source_segments": [
+        266
+      ]
+    },
+    {
+      "start": 986.0,
+      "end": 992.0,
+      "text": "AI pioneer Hans Moravec supports this for you in his book, Mind Children.",
+      "source_segments": [
+        267,
+        268
+      ]
+    },
+    {
+      "start": 992.0,
+      "end": 1005.0,
+      "text": "Tagmark explains, parents with a child smarter than them who learns from them and accomplishes what they can only dream of are likely happy and proud even if they know they can't live to see it all.",
+      "source_segments": [
+        269,
+        270,
+        271,
+        272,
+        273,
+        274
+      ]
+    },
+    {
+      "start": 1005.0,
+      "end": 1014.0,
+      "text": "In this spirit, AIs replace humans but give us a graceful exit that makes us view them as our worthy descendants.",
+      "source_segments": [
+        275,
+        276,
+        277
+      ]
+    },
+    {
+      "start": 1014.0,
+      "end": 1033.0,
+      "text": "Richard Sutton, winner of the Turing Award that Nobel Prize of Computer Science has spent the last decade openly giving talks on why human extinction by AI is actually a morally good thing because the AIs will be more environmentally fit than us.",
+      "source_segments": [
+        278,
+        279,
+        280,
+        281,
+        282,
+        283,
+        284
+      ]
+    },
+    {
+      "start": 1033.0,
+      "end": 1039.0,
+      "text": "We are in the midst of a major step in the evolution of the planet if not the universe.",
+      "source_segments": [
+        285,
+        286
+      ]
+    },
+    {
+      "start": 1039.0,
+      "end": 1042.0,
+      "text": "The succession to AI is inevitable.",
+      "source_segments": [
+        287
+      ]
+    },
+    {
+      "start": 1042.0,
+      "end": 1047.0,
+      "text": "Rather quickly, it would displace us in existence.",
+      "source_segments": [
+        288,
+        289
+      ]
+    },
+    {
+      "start": 1047.0,
+      "end": 1053.0,
+      "text": "It would behoose us to give them every advantage and to bow out when we can no longer contribute.",
+      "source_segments": [
+        290,
+        291
+      ]
+    },
+    {
+      "start": 1053.0,
+      "end": 1062.0,
+      "text": "So just as we failed to coexist with our predecessors, is it so bad that humans are not the final form of intelligent life in the universe, you know?",
+      "source_segments": [
+        292,
+        293,
+        294,
+        295
+      ]
+    },
+    {
+      "start": 1062.0,
+      "end": 1073.0,
+      "text": "In other words, he is saying it's good if the AIs wipe us out like humans wiped out the Neanderthals and Aboriginal peoples because it's evolutionary progress.",
+      "source_segments": [
+        296,
+        297,
+        298,
+        299,
+        300
+      ]
+    },
+    {
+      "start": 1073.0,
+      "end": 1083.0,
+      "text": "And here's another AI developer openly saying if an AI superintelligence wants to cause human extinction I would help it.",
+      "source_segments": [
+        301,
+        302,
+        303,
+        304
+      ]
+    },
+    {
+      "start": 1083.0,
+      "end": 1085.0,
+      "text": "I would help it.",
+      "source_segments": [
+        305
+      ]
+    },
+    {
+      "start": 1085.0,
+      "end": 1099.0,
+      "text": "I would travel the world to find information that the AI needed like locations of military assets samples of deadly pathogens atop humanity's grave and even greater civilization will be born.",
+      "source_segments": [
+        306,
+        307,
+        308,
+        309,
+        310,
+        311
+      ]
+    },
+    {
+      "start": 1101.0,
+      "end": 1103.0,
+      "text": "Are we the baddies?",
+      "source_segments": [
+        312
+      ]
+    },
+    {
+      "start": 1103.0,
+      "end": 1108.0,
+      "text": "So of course, many of them advocate against AI safety.",
+      "source_segments": [
+        313,
+        314
+      ]
+    },
+    {
+      "start": 1108.0,
+      "end": 1110.0,
+      "text": "They're literally anti-human.",
+      "source_segments": [
+        315
+      ]
+    },
+    {
+      "start": 1110.0,
+      "end": 1116.0,
+      "text": "They will never stop or proceed cautiously unless they're restrained by civil society, by us.",
+      "source_segments": [
+        316,
+        317,
+        318
+      ]
+    },
+    {
+      "start": 1116.0,
+      "end": 1121.0,
+      "text": "As horrifying as this is, roughly 10% of AI researchers believe this.",
+      "source_segments": [
+        319,
+        320
+      ]
+    },
+    {
+      "start": 1121.0,
+      "end": 1123.0,
+      "text": "It is not a fringe view.",
+      "source_segments": [
+        321
+      ]
+    },
+    {
+      "start": 1123.0,
+      "end": 1127.0,
+      "text": "You'd think that people would never share these views like this openly.",
+      "source_segments": [
+        322,
+        323
+      ]
+    },
+    {
+      "start": 1127.0,
+      "end": 1132.0,
+      "text": "But these views are so widespread in AI that they feel safe to do so.",
+      "source_segments": [
+        324,
+        325
+      ]
+    },
+    {
+      "start": 1132.0,
+      "end": 1137.0,
+      "text": "That's how different the views are of those AI developers compared to those of normal people.",
+      "source_segments": [
+        326,
+        327,
+        328
+      ]
+    },
+    {
+      "start": 1137.0,
+      "end": 1143.0,
+      "text": "You might think that Sutton would get shouted off the stage at AI conferences but he gets applause.",
+      "source_segments": [
+        329,
+        330,
+        331
+      ]
+    },
+    {
+      "start": 1143.0,
+      "end": 1147.0,
+      "text": "Threaten one person you need help.",
+      "source_segments": [
+        332,
+        333
+      ]
+    },
+    {
+      "start": 1147.0,
+      "end": 1149.0,
+      "text": "Threaten 100, call the police.",
+      "source_segments": [
+        334
+      ]
+    },
+    {
+      "start": 1149.0,
+      "end": 1152.0,
+      "text": "Threaten millions, monster.",
+      "source_segments": [
+        335,
+        336
+      ]
+    },
+    {
+      "start": 1152.0,
+      "end": 1158.0,
+      "text": "But build machines to end all of humanity and lecture people on how it's actually a good thing.",
+      "source_segments": [
+        337,
+        338
+      ]
+    },
+    {
+      "start": 1158.0,
+      "end": 1161.0,
+      "text": "Ooh, what a fascinating philosophical position.",
+      "source_segments": [
+        339
+      ]
+    },
+    {
+      "start": 1161.0,
+      "end": 1163.0,
+      "text": "Have an award.",
+      "source_segments": [
+        340
+      ]
+    },
+    {
+      "start": 1163.0,
+      "end": 1166.0,
+      "text": "Next, Libertarian Utopia.",
+      "source_segments": [
+        341
+      ]
+    },
+    {
+      "start": 1166.0,
+      "end": 1168.0,
+      "text": "Picture Earth divided into zones.",
+      "source_segments": [
+        342
+      ]
+    },
+    {
+      "start": 1168.0,
+      "end": 1177.0,
+      "text": "There are machine zones, mixed zones which contain humans, machines and hybrids, and human-only zones.",
+      "source_segments": [
+        343,
+        344,
+        345,
+        346
+      ]
+    },
+    {
+      "start": 1177.0,
+      "end": 1186.0,
+      "text": "The AIs in this world are richer than humans by a factor much larger than Bill Gates compared to a homeless beggar.",
+      "source_segments": [
+        347,
+        348,
+        349
+      ]
+    },
+    {
+      "start": 1186.0,
+      "end": 1191.0,
+      "text": "But the human economy is completely decoupled from the machine economy.",
+      "source_segments": [
+        350,
+        351
+      ]
+    },
+    {
+      "start": 1191.0,
+      "end": 1194.0,
+      "text": "The idea is that the machines need nothing from us.",
+      "source_segments": [
+        352
+      ]
+    },
+    {
+      "start": 1194.0,
+      "end": 1198.0,
+      "text": "So they're not competing with us for jobs or resources.",
+      "source_segments": [
+        353,
+        354
+      ]
+    },
+    {
+      "start": 1198.0,
+      "end": 1202.0,
+      "text": "If all of that sounds impossible, that's probably because it is.",
+      "source_segments": [
+        355,
+        356
+      ]
+    },
+    {
+      "start": 1202.0,
+      "end": 1205.0,
+      "text": "One giant, unstable equilibria.",
+      "source_segments": [
+        357
+      ]
+    },
+    {
+      "start": 1205.0,
+      "end": 1207.0,
+      "text": "One huge problem.",
+      "source_segments": [
+        358
+      ]
+    },
+    {
+      "start": 1207.0,
+      "end": 1212.0,
+      "text": "Why exactly would vastly more powerful AIs respect our property rights?",
+      "source_segments": [
+        359,
+        360
+      ]
+    },
+    {
+      "start": 1212.0,
+      "end": 1217.0,
+      "text": "Colonizers famously didn't respect the property of the native civilizations they conquered.",
+      "source_segments": [
+        361,
+        362
+      ]
+    },
+    {
+      "start": 1217.0,
+      "end": 1224.0,
+      "text": "When a new apex species enters an ecosystem, it usually gobbles up as much energy as it can.",
+      "source_segments": [
+        363,
+        364
+      ]
+    },
+    {
+      "start": 1224.0,
+      "end": 1227.0,
+      "text": "Why wouldn't they just take our resources too?",
+      "source_segments": [
+        365
+      ]
+    },
+    {
+      "start": 1227.0,
+      "end": 1232.0,
+      "text": "We don't trade with animals because we're too much smarter than they are for that to make sense.",
+      "source_segments": [
+        366,
+        367,
+        368
+      ]
+    },
+    {
+      "start": 1232.0,
+      "end": 1234.0,
+      "text": "We're just too different.",
+      "source_segments": [
+        369
+      ]
+    },
+    {
+      "start": 1234.0,
+      "end": 1241.0,
+      "text": "There are 8 million species in the world and we're nice to a few of the cute ones, but we enslave and eat the other species.",
+      "source_segments": [
+        370,
+        371,
+        372
+      ]
+    },
+    {
+      "start": 1241.0,
+      "end": 1244.0,
+      "text": "Mostly, we don't care about them at all.",
+      "source_segments": [
+        373
+      ]
+    },
+    {
+      "start": 1244.0,
+      "end": 1248.0,
+      "text": "And I think a good analogy would be the way humans treat animals.",
+      "source_segments": [
+        374,
+        375
+      ]
+    },
+    {
+      "start": 1248.0,
+      "end": 1255.0,
+      "text": "When the time comes to build a highway between two cities, we're not asking the animals for permission.",
+      "source_segments": [
+        376,
+        377,
+        378
+      ]
+    },
+    {
+      "start": 1255.0,
+      "end": 1262.0,
+      "text": "In the blink of an eye, we've converted most of its land into our property, which caused the sixth mass extinction.",
+      "source_segments": [
+        379,
+        380,
+        381
+      ]
+    },
+    {
+      "start": 1262.0,
+      "end": 1265.0,
+      "text": "Because we were smarter and hungry for resources.",
+      "source_segments": [
+        382
+      ]
+    },
+    {
+      "start": 1265.0,
+      "end": 1275.0,
+      "text": "Or as Elias or Yodkowski put it famously, the AI does not hate you nor does it love you, but you're made of atoms which you can use for something else.",
+      "source_segments": [
+        383,
+        384,
+        385
+      ]
+    },
+    {
+      "start": 1275.0,
+      "end": 1285.0,
+      "text": "The parallel here is the humans do not hate the other 8 million species, but their habitats are made out of atoms which humans can use for something else.",
+      "source_segments": [
+        386,
+        387,
+        388,
+        389
+      ]
+    },
+    {
+      "start": 1285.0,
+      "end": 1294.0,
+      "text": "Some people think that once AIs are smart enough, they'll magically become super moral and they won't harm us like we harmed the animals.",
+      "source_segments": [
+        390,
+        391,
+        392
+      ]
+    },
+    {
+      "start": 1294.0,
+      "end": 1302.0,
+      "text": "And maybe, but as humans got smarter over the last 10,000 years, we didn't stop expanding.",
+      "source_segments": [
+        393,
+        394,
+        395
+      ]
+    },
+    {
+      "start": 1302.0,
+      "end": 1305.0,
+      "text": "We mostly just colonized more and more of the planet.",
+      "source_segments": [
+        396
+      ]
+    },
+    {
+      "start": 1305.0,
+      "end": 1310.0,
+      "text": "Get this, insect populations collapsed 41% this decade alone.",
+      "source_segments": [
+        397,
+        398
+      ]
+    },
+    {
+      "start": 1310.0,
+      "end": 1312.0,
+      "text": "Yet we don't care.",
+      "source_segments": [
+        399
+      ]
+    },
+    {
+      "start": 1312.0,
+      "end": 1313.0,
+      "text": "Did you even know?",
+      "source_segments": [
+        400
+      ]
+    },
+    {
+      "start": 1313.0,
+      "end": 1314.0,
+      "text": "I didn't.",
+      "source_segments": [
+        401
+      ]
+    },
+    {
+      "start": 1314.0,
+      "end": 1316.0,
+      "text": "41%?",
+      "source_segments": [
+        402
+      ]
+    },
+    {
+      "start": 1316.0,
+      "end": 1317.0,
+      "text": "Sit with that for a minute.",
+      "source_segments": [
+        403
+      ]
+    },
+    {
+      "start": 1317.0,
+      "end": 1321.0,
+      "text": "Imagine if nearly half of the people on Earth suddenly died.",
+      "source_segments": [
+        404,
+        405
+      ]
+    },
+    {
+      "start": 1321.0,
+      "end": 1325.0,
+      "text": "That's what the insects are going through right now due to us.",
+      "source_segments": [
+        406,
+        407
+      ]
+    },
+    {
+      "start": 1325.0,
+      "end": 1327.0,
+      "text": "So what if the AI is due to us?",
+      "source_segments": [
+        408
+      ]
+    },
+    {
+      "start": 1327.0,
+      "end": 1330.0,
+      "text": "What we did to the insects?",
+      "source_segments": [
+        409
+      ]
+    },
+    {
+      "start": 1330.0,
+      "end": 1340.0,
+      "text": "This is why open AI chief scientist, Ilya Sutskiver once said, And I think it's pretty likely the entire surface of the Earth will be covered with solar panels and data centers.",
+      "source_segments": [
+        410,
+        411,
+        412,
+        413,
+        414
+      ]
+    },
+    {
+      "start": 1341.0,
+      "end": 1344.0,
+      "text": "Next up, egalitarian utopia.",
+      "source_segments": [
+        415,
+        416
+      ]
+    },
+    {
+      "start": 1344.0,
+      "end": 1351.0,
+      "text": "Okay, so libertarian utopia fails because AIs are too powerful to be bound by our property rights.",
+      "source_segments": [
+        417,
+        418,
+        419
+      ]
+    },
+    {
+      "start": 1351.0,
+      "end": 1354.0,
+      "text": "But what if we flipped the script entirely?",
+      "source_segments": [
+        420
+      ]
+    },
+    {
+      "start": 1354.0,
+      "end": 1356.0,
+      "text": "Forget about property rights.",
+      "source_segments": [
+        421
+      ]
+    },
+    {
+      "start": 1356.0,
+      "end": 1358.0,
+      "text": "What about no property at all?",
+      "source_segments": [
+        422
+      ]
+    },
+    {
+      "start": 1358.0,
+      "end": 1360.0,
+      "text": "This is the Star Trek dream.",
+      "source_segments": [
+        423
+      ]
+    },
+    {
+      "start": 1360.0,
+      "end": 1369.0,
+      "text": "Humans, cyborgs and AIs coexist peacefully through an abundance so complete that ownership becomes meaningless.",
+      "source_segments": [
+        424,
+        425,
+        426
+      ]
+    },
+    {
+      "start": 1370.0,
+      "end": 1372.0,
+      "text": "The logic starts with software.",
+      "source_segments": [
+        427
+      ]
+    },
+    {
+      "start": 1372.0,
+      "end": 1374.0,
+      "text": "Software is for you to copy.",
+      "source_segments": [
+        428
+      ]
+    },
+    {
+      "start": 1374.0,
+      "end": 1379.0,
+      "text": "Once something can be copied infinitely at zero cost, ownership becomes moot.",
+      "source_segments": [
+        429,
+        430
+      ]
+    },
+    {
+      "start": 1379.0,
+      "end": 1381.0,
+      "text": "And cost reflects scarcity.",
+      "source_segments": [
+        431
+      ]
+    },
+    {
+      "start": 1381.0,
+      "end": 1385.0,
+      "text": "If supply is unlimited, price approaches zero.",
+      "source_segments": [
+        432
+      ]
+    },
+    {
+      "start": 1385.0,
+      "end": 1390.0,
+      "text": "No patents, no copyrights, no trademarks.",
+      "source_segments": [
+        433,
+        434
+      ]
+    },
+    {
+      "start": 1390.0,
+      "end": 1395.0,
+      "text": "People simply share their good ideas and everyone benefits.",
+      "source_segments": [
+        435,
+        436
+      ]
+    },
+    {
+      "start": 1395.0,
+      "end": 1398.0,
+      "text": "But how does this extend to physical goods?",
+      "source_segments": [
+        437
+      ]
+    },
+    {
+      "start": 1398.0,
+      "end": 1407.0,
+      "text": "It seems like an impossible problem until you realize that all products are simply atoms rearranged in particular ways.",
+      "source_segments": [
+        438,
+        439,
+        440
+      ]
+    },
+    {
+      "start": 1407.0,
+      "end": 1409.0,
+      "text": "And there's no shortage of atoms.",
+      "source_segments": [
+        441
+      ]
+    },
+    {
+      "start": 1409.0,
+      "end": 1414.0,
+      "text": "A network of robots can build anything you want from open source designs, essentially for free.",
+      "source_segments": [
+        442,
+        443,
+        444
+      ]
+    },
+    {
+      "start": 1414.0,
+      "end": 1415.0,
+      "text": "Not bad.",
+      "source_segments": [
+        445
+      ]
+    },
+    {
+      "start": 1415.0,
+      "end": 1420.0,
+      "text": "When you're done with something, robots rearrange the atoms into something else.",
+      "source_segments": [
+        446,
+        447
+      ]
+    },
+    {
+      "start": 1420.0,
+      "end": 1425.0,
+      "text": "Renewable energy makes the whole system run at negligible cost.",
+      "source_segments": [
+        448,
+        449
+      ]
+    },
+    {
+      "start": 1425.0,
+      "end": 1428.0,
+      "text": "Everyone gets a monthly universal high income.",
+      "source_segments": [
+        450
+      ]
+    },
+    {
+      "start": 1428.0,
+      "end": 1430.0,
+      "text": "Not a universal basic income.",
+      "source_segments": [
+        451
+      ]
+    },
+    {
+      "start": 1430.0,
+      "end": 1432.0,
+      "text": "There's no incentive to earn more.",
+      "source_segments": [
+        452
+      ]
+    },
+    {
+      "start": 1432.0,
+      "end": 1437.0,
+      "text": "The income meets any reasonable need and you can't compete with free anyway.",
+      "source_segments": [
+        453,
+        454
+      ]
+    },
+    {
+      "start": 1437.0,
+      "end": 1440.0,
+      "text": "The standard objection is that this would kill innovation.",
+      "source_segments": [
+        455
+      ]
+    },
+    {
+      "start": 1440.0,
+      "end": 1443.0,
+      "text": "But Einstein didn't come up with relativity for money.",
+      "source_segments": [
+        456
+      ]
+    },
+    {
+      "start": 1443.0,
+      "end": 1446.0,
+      "text": "Linus Torvalds didn't create Linux for profit.",
+      "source_segments": [
+        457
+      ]
+    },
+    {
+      "start": 1446.0,
+      "end": 1451.0,
+      "text": "Maybe people today can't realize their creative potential because they're busy earning a living.",
+      "source_segments": [
+        458,
+        459
+      ]
+    },
+    {
+      "start": 1451.0,
+      "end": 1456.0,
+      "text": "Free them from that and you might get a higher level of innovation.",
+      "source_segments": [
+        460,
+        461
+      ]
+    },
+    {
+      "start": 1456.0,
+      "end": 1460.0,
+      "text": "This is a utopian vision that is too good to last.",
+      "source_segments": [
+        462
+      ]
+    },
+    {
+      "start": 1461.0,
+      "end": 1479.0,
+      "text": "If we truly have post scarcity abundance and intelligence too cheap to meter, what prevents someone from creating an artificial superintelligence with their endlessly abundant resources we're still left with the problem of how to stop a superintelligent AI from taking over.",
+      "source_segments": [
+        463,
+        464,
+        465,
+        466,
+        467,
+        468,
+        469
+      ]
+    },
+    {
+      "start": 1479.0,
+      "end": 1482.0,
+      "text": "Maybe by using the gatekeeper we previously discussed.",
+      "source_segments": [
+        470
+      ]
+    },
+    {
+      "start": 1482.0,
+      "end": 1492.0,
+      "text": "These galaxy-brained Level 3 futures try to imagine a stable cooperation between humans and AIs and every single one of them has a fate of flaw.",
+      "source_segments": [
+        471,
+        472,
+        473
+      ]
+    },
+    {
+      "start": 1492.0,
+      "end": 1495.0,
+      "text": "The power asymmetries will become too extreme.",
+      "source_segments": [
+        474
+      ]
+    },
+    {
+      "start": 1495.0,
+      "end": 1500.0,
+      "text": "It's not a stable equilibrium where humans preserve their power.",
+      "source_segments": [
+        475,
+        476
+      ]
+    },
+    {
+      "start": 1501.0,
+      "end": 1505.0,
+      "text": "We're now descending into the darkest part of the iceberg.",
+      "source_segments": [
+        477
+      ]
+    },
+    {
+      "start": 1505.0,
+      "end": 1512.0,
+      "text": "Remember when I said extinction wasn't rated as the worst outcome when Professor Techmark surveyed people?",
+      "source_segments": [
+        478,
+        479
+      ]
+    },
+    {
+      "start": 1512.0,
+      "end": 1518.0,
+      "text": "The scenario people feared most was being kept alive by superintelligent machines.",
+      "source_segments": [
+        480,
+        481
+      ]
+    },
+    {
+      "start": 1518.0,
+      "end": 1522.0,
+      "text": "Captive and studied, like animals and a zoo.",
+      "source_segments": [
+        482
+      ]
+    },
+    {
+      "start": 1522.0,
+      "end": 1524.0,
+      "text": "This is that future.",
+      "source_segments": [
+        483
+      ]
+    },
+    {
+      "start": 1524.0,
+      "end": 1534.0,
+      "text": "A superintelligent AI keeps humans around not because it cares about our well-being maybe it wants to study you and we're cheap to keep alive.",
+      "source_segments": [
+        484,
+        485,
+        486,
+        487
+      ]
+    },
+    {
+      "start": 1534.0,
+      "end": 1543.0,
+      "text": "Or maybe we're useful for something if you want to see just how dystopian this future could be look at what we do with species that are useful to us.",
+      "source_segments": [
+        488,
+        489,
+        490
+      ]
+    },
+    {
+      "start": 1543.0,
+      "end": 1546.0,
+      "text": "What I'm showing you here is 100% real.",
+      "source_segments": [
+        491
+      ]
+    },
+    {
+      "start": 1546.0,
+      "end": 1553.0,
+      "text": "Humans figured out that a great way to detect explosives in airports was to train honeybees for the job.",
+      "source_segments": [
+        492,
+        493
+      ]
+    },
+    {
+      "start": 1553.0,
+      "end": 1557.0,
+      "text": "Welcome to the Honeybee College for Explosive Detection.",
+      "source_segments": [
+        494
+      ]
+    },
+    {
+      "start": 1557.0,
+      "end": 1568.0,
+      "text": "So we suck them out of their homes, trap their little bodies in machines and use Pav-Lokin conditioning to train them to detect the chemicals that are used in explosives.",
+      "source_segments": [
+        495,
+        496,
+        497,
+        498,
+        499
+      ]
+    },
+    {
+      "start": 1568.0,
+      "end": 1577.0,
+      "text": "Rows and rows of bees live their entire lives imprisoned in these devices because we find them useful.",
+      "source_segments": [
+        500,
+        501,
+        502
+      ]
+    },
+    {
+      "start": 1577.0,
+      "end": 1578.0,
+      "text": "Look at them.",
+      "source_segments": [
+        503
+      ]
+    },
+    {
+      "start": 1578.0,
+      "end": 1588.0,
+      "text": "Trapped in harnesses, sucked through tubes, conditioned and monitored and used because a more intelligent species found them useful.",
+      "source_segments": [
+        504,
+        505,
+        506,
+        507,
+        508
+      ]
+    },
+    {
+      "start": 1588.0,
+      "end": 1590.0,
+      "text": "Now imagine that's us.",
+      "source_segments": [
+        509
+      ]
+    },
+    {
+      "start": 1591.0,
+      "end": 1595.0,
+      "text": "This is much worse than the other AI dictators we discussed.",
+      "source_segments": [
+        510
+      ]
+    },
+    {
+      "start": 1595.0,
+      "end": 1599.0,
+      "text": "It's a benevolent dictator without the benevolence.",
+      "source_segments": [
+        511
+      ]
+    },
+    {
+      "start": 1599.0,
+      "end": 1602.0,
+      "text": "And the AI might not even be doing this because it's evil.",
+      "source_segments": [
+        512
+      ]
+    },
+    {
+      "start": 1602.0,
+      "end": 1609.0,
+      "text": "This is what our future could look like if we try to align a super intelligent AI to our values and fail.",
+      "source_segments": [
+        513,
+        514
+      ]
+    },
+    {
+      "start": 1609.0,
+      "end": 1620.0,
+      "text": "A poorly designed AI, tasked with keeping humans safe and happy, might confine us to a happiness factory via our headsets and drugs.",
+      "source_segments": [
+        515,
+        516,
+        517,
+        518
+      ]
+    },
+    {
+      "start": 1620.0,
+      "end": 1621.0,
+      "text": "Forever.",
+      "source_segments": [
+        519
+      ]
+    },
+    {
+      "start": 1621.0,
+      "end": 1624.0,
+      "text": "There are AGI outcomes worse than death.",
+      "source_segments": [
+        520
+      ]
+    },
+    {
+      "start": 1624.0,
+      "end": 1628.0,
+      "text": "What it does today with art it could do tomorrow with flesh.",
+      "source_segments": [
+        521,
+        522
+      ]
+    },
+    {
+      "start": 1628.0,
+      "end": 1633.0,
+      "text": "Future AGI could keep you alive and living in this state.",
+      "source_segments": [
+        523,
+        524
+      ]
+    },
+    {
+      "start": 1633.0,
+      "end": 1635.0,
+      "text": "So how do we prevent this?",
+      "source_segments": [
+        525
+      ]
+    },
+    {
+      "start": 1635.0,
+      "end": 1638.0,
+      "text": "Enter our last two futures.",
+      "source_segments": [
+        526
+      ]
+    },
+    {
+      "start": 1638.0,
+      "end": 1641.0,
+      "text": "Option one, destroy the technology.",
+      "source_segments": [
+        527
+      ]
+    },
+    {
+      "start": 1641.0,
+      "end": 1646.0,
+      "text": "What if humanity said, forget AI, let's go back to simpler times.",
+      "source_segments": [
+        528,
+        529
+      ]
+    },
+    {
+      "start": 1646.0,
+      "end": 1648.0,
+      "text": "It sounds peaceful.",
+      "source_segments": [
+        530
+      ]
+    },
+    {
+      "start": 1648.0,
+      "end": 1650.0,
+      "text": "It sounds safe.",
+      "source_segments": [
+        531
+      ]
+    },
+    {
+      "start": 1650.0,
+      "end": 1654.0,
+      "text": "But there's actually a dark secret about how we actually get there.",
+      "source_segments": [
+        532
+      ]
+    },
+    {
+      "start": 1657.0,
+      "end": 1661.0,
+      "text": "In Dune, humans launched the Butlerian Jihad.",
+      "source_segments": [
+        533
+      ]
+    },
+    {
+      "start": 1661.0,
+      "end": 1670.0,
+      "text": "They rose up, destroyed every AI in the universe and made it illegal to ever build thinking machines again under penalty of death.",
+      "source_segments": [
+        534,
+        535,
+        536
+      ]
+    },
+    {
+      "start": 1671.0,
+      "end": 1673.0,
+      "text": "That was science fiction.",
+      "source_segments": [
+        537
+      ]
+    },
+    {
+      "start": 1673.0,
+      "end": 1677.0,
+      "text": "But some people are seriously calling for this in the real world right now.",
+      "source_segments": [
+        538,
+        539
+      ]
+    },
+    {
+      "start": 1677.0,
+      "end": 1684.0,
+      "text": "Max Tagmark imagines a scenario where a massive propaganda campaign romanticizes the simple farming life.",
+      "source_segments": [
+        540,
+        541
+      ]
+    },
+    {
+      "start": 1684.0,
+      "end": 1688.0,
+      "text": "Back to the land, reject modernity, embrace tradition.",
+      "source_segments": [
+        542
+      ]
+    },
+    {
+      "start": 1688.0,
+      "end": 1691.0,
+      "text": "There's something appealing about this in a dark way.",
+      "source_segments": [
+        543
+      ]
+    },
+    {
+      "start": 1691.0,
+      "end": 1695.0,
+      "text": "It buys humanity more time without AI risk.",
+      "source_segments": [
+        544
+      ]
+    },
+    {
+      "start": 1695.0,
+      "end": 1699.0,
+      "text": "It avoids any of the other dystopian futures we've discussed.",
+      "source_segments": [
+        545
+      ]
+    },
+    {
+      "start": 1699.0,
+      "end": 1701.0,
+      "text": "But it can't last forever.",
+      "source_segments": [
+        546
+      ]
+    },
+    {
+      "start": 1701.0,
+      "end": 1712.0,
+      "text": "Even if we revert to medieval levels of technology, we know from human history that it's possible for humans to claim out of those conditions and invent modern technology.",
+      "source_segments": [
+        547,
+        548,
+        549,
+        550
+      ]
+    },
+    {
+      "start": 1712.0,
+      "end": 1715.0,
+      "text": "And there's another dark side to this.",
+      "source_segments": [
+        551
+      ]
+    },
+    {
+      "start": 1715.0,
+      "end": 1718.0,
+      "text": "You can't reach this world voluntarily.",
+      "source_segments": [
+        552
+      ]
+    },
+    {
+      "start": 1718.0,
+      "end": 1723.0,
+      "text": "Game theory makes unilateral disarmament impossible.",
+      "source_segments": [
+        553
+      ]
+    },
+    {
+      "start": 1723.0,
+      "end": 1728.0,
+      "text": "If one country gives up technology, well, others keep developing it.",
+      "source_segments": [
+        554,
+        555
+      ]
+    },
+    {
+      "start": 1728.0,
+      "end": 1730.0,
+      "text": "The country that keeps developing wins.",
+      "source_segments": [
+        556
+      ]
+    },
+    {
+      "start": 1730.0,
+      "end": 1736.0,
+      "text": "They have the weapons, they have the surveillance, they have the AI.",
+      "source_segments": [
+        557,
+        558,
+        559
+      ]
+    },
+    {
+      "start": 1738.0,
+      "end": 1742.0,
+      "text": "You can't opt out unless everyone opts out.",
+      "source_segments": [
+        560
+      ]
+    },
+    {
+      "start": 1742.0,
+      "end": 1747.0,
+      "text": "If this world arrives, Tagmark thinks it's more likely to happen in a different way.",
+      "source_segments": [
+        561,
+        562
+      ]
+    },
+    {
+      "start": 1747.0,
+      "end": 1753.0,
+      "text": "For example, a human created pandemic kills everyone who knows how to build science and technology.",
+      "source_segments": [
+        563,
+        564
+      ]
+    },
+    {
+      "start": 1753.0,
+      "end": 1759.0,
+      "text": "And there's a violent tear down of factories, cities, and all infrastructure.",
+      "source_segments": [
+        565,
+        566
+      ]
+    },
+    {
+      "start": 1760.0,
+      "end": 1765.0,
+      "text": "Because in a world with 8 billion humans, there will always be holdouts.",
+      "source_segments": [
+        567,
+        568
+      ]
+    },
+    {
+      "start": 1765.0,
+      "end": 1767.0,
+      "text": "Someone has to force the transition.",
+      "source_segments": [
+        569
+      ]
+    },
+    {
+      "start": 1767.0,
+      "end": 1770.0,
+      "text": "Someone has to kill the scientists.",
+      "source_segments": [
+        570
+      ]
+    },
+    {
+      "start": 1770.0,
+      "end": 1773.0,
+      "text": "Someone has to destroy the infrastructure.",
+      "source_segments": [
+        571
+      ]
+    },
+    {
+      "start": 1773.0,
+      "end": 1777.0,
+      "text": "There's no peaceful path to an Amish world.",
+      "source_segments": [
+        572
+      ]
+    },
+    {
+      "start": 1777.0,
+      "end": 1780.0,
+      "text": "Which brings us to the final future.",
+      "source_segments": [
+        573
+      ]
+    },
+    {
+      "start": 1780.0,
+      "end": 1784.0,
+      "text": "What if we used technology to prevent more technology?",
+      "source_segments": [
+        574
+      ]
+    },
+    {
+      "start": 1785.0,
+      "end": 1788.0,
+      "text": "Tagmark compares this future to 1984.",
+      "source_segments": [
+        575
+      ]
+    },
+    {
+      "start": 1788.0,
+      "end": 1795.0,
+      "text": "Superintelligence is prevented not by an AI, but a human-led or well-in-global surveillance state.",
+      "source_segments": [
+        576,
+        577
+      ]
+    },
+    {
+      "start": 1795.0,
+      "end": 1801.0,
+      "text": "If you can't trust AI to save us from AI, maybe the only option is humans watching humans.",
+      "source_segments": [
+        578,
+        579
+      ]
+    },
+    {
+      "start": 1801.0,
+      "end": 1803.0,
+      "text": "Forever.",
+      "source_segments": [
+        580
+      ]
+    },
+    {
+      "start": 1803.0,
+      "end": 1806.0,
+      "text": "The technology for this sort of thing already exists.",
+      "source_segments": [
+        581
+      ]
+    },
+    {
+      "start": 1806.0,
+      "end": 1814.0,
+      "text": "Current tech can feasibly track every phone call, email, search query, and every credit card transaction.",
+      "source_segments": [
+        582,
+        583,
+        584
+      ]
+    },
+    {
+      "start": 1814.0,
+      "end": 1819.0,
+      "text": "Smartphones are microphones in cameras in everyone's pocket.",
+      "source_segments": [
+        585,
+        586
+      ]
+    },
+    {
+      "start": 1819.0,
+      "end": 1821.0,
+      "text": "Security cameras with facial recognition are everywhere.",
+      "source_segments": [
+        587
+      ]
+    },
+    {
+      "start": 1821.0,
+      "end": 1824.0,
+      "text": "And all of this works with current machine learning.",
+      "source_segments": [
+        588
+      ]
+    },
+    {
+      "start": 1824.0,
+      "end": 1827.0,
+      "text": "No futuristic superintelligent AI required.",
+      "source_segments": [
+        589
+      ]
+    },
+    {
+      "start": 1827.0,
+      "end": 1835.0,
+      "text": "Prisons are already using AI models to monitor phone calls in prison to predict when crimes are being contemplated.",
+      "source_segments": [
+        590,
+        591,
+        592
+      ]
+    },
+    {
+      "start": 1835.0,
+      "end": 1838.0,
+      "text": "Which is technology straight out of Minority Report.",
+      "source_segments": [
+        593
+      ]
+    },
+    {
+      "start": 1838.0,
+      "end": 1841.0,
+      "text": "Imagine this, but not just for prisoners.",
+      "source_segments": [
+        594
+      ]
+    },
+    {
+      "start": 1841.0,
+      "end": 1845.0,
+      "text": "Every conversation and every thought is monitored like this.",
+      "source_segments": [
+        595
+      ]
+    },
+    {
+      "start": 1845.0,
+      "end": 1851.0,
+      "text": "Now imagine this surveillance technology supercharged with AI.",
+      "source_segments": [
+        596,
+        597
+      ]
+    },
+    {
+      "start": 1851.0,
+      "end": 1861.0,
+      "text": "Billionaire Larry Ellison talks excitedly about a vast AI-fueled surveillance system to ensure citizens will be on their best behavior.",
+      "source_segments": [
+        598,
+        599,
+        600
+      ]
+    },
+    {
+      "start": 1861.0,
+      "end": 1864.0,
+      "text": "Or as Yvonne Harari put it.",
+      "source_segments": [
+        601
+      ]
+    },
+    {
+      "start": 1864.0,
+      "end": 1870.0,
+      "text": "Now, for the first time in history, it is technically possible to annihilate privacy.",
+      "source_segments": [
+        602,
+        603
+      ]
+    },
+    {
+      "start": 1870.0,
+      "end": 1877.0,
+      "text": "If you think about authoritarian regimes, throughout history they always wanted to monitor their citizens around the clock.",
+      "source_segments": [
+        604,
+        605,
+        606
+      ]
+    },
+    {
+      "start": 1877.0,
+      "end": 1879.0,
+      "text": "But this was technically impossible.",
+      "source_segments": [
+        607
+      ]
+    },
+    {
+      "start": 1879.0,
+      "end": 1883.0,
+      "text": "Even in the Soviet Union, you have 200 million Soviet citizens.",
+      "source_segments": [
+        608,
+        609
+      ]
+    },
+    {
+      "start": 1883.0,
+      "end": 1889.0,
+      "text": "You can't follow them all the time because the KGB didn't have 200 million agents.",
+      "source_segments": [
+        610,
+        611
+      ]
+    },
+    {
+      "start": 1889.0,
+      "end": 1894.0,
+      "text": "And even if the KGB somehow got 200 million agents, that's not enough.",
+      "source_segments": [
+        612,
+        613
+      ]
+    },
+    {
+      "start": 1894.0,
+      "end": 1899.0,
+      "text": "Because in the Soviet Union, it's still basically paper bureaucracy.",
+      "source_segments": [
+        614,
+        615
+      ]
+    },
+    {
+      "start": 1899.0,
+      "end": 1908.0,
+      "text": "If a secret agent followed you around 24 hours a day, at the end of the day they write a paper report about you and send it to KGB headquarters in Moscow.",
+      "source_segments": [
+        616,
+        617,
+        618
+      ]
+    },
+    {
+      "start": 1908.0,
+      "end": 1914.0,
+      "text": "So imagine, every day KGB headquarters is flooded with 200 million paper reports.",
+      "source_segments": [
+        619,
+        620
+      ]
+    },
+    {
+      "start": 1914.0,
+      "end": 1919.0,
+      "text": "Now to be useful for anything, somebody needs to read and analyze them.",
+      "source_segments": [
+        621,
+        622
+      ]
+    },
+    {
+      "start": 1919.0,
+      "end": 1921.0,
+      "text": "They can't do it, they don't have the analysts.",
+      "source_segments": [
+        623
+      ]
+    },
+    {
+      "start": 1921.0,
+      "end": 1926.0,
+      "text": "Therefore even in the Soviet Union, some level of privacy was still the default.",
+      "source_segments": [
+        624,
+        625
+      ]
+    },
+    {
+      "start": 1926.0,
+      "end": 1929.0,
+      "text": "And remember, you have two eyes and ears.",
+      "source_segments": [
+        626
+      ]
+    },
+    {
+      "start": 1929.0,
+      "end": 1933.0,
+      "text": "A.I.s will have billions of eyes and ears.",
+      "source_segments": [
+        627
+      ]
+    },
+    {
+      "start": 1933.0,
+      "end": 1936.0,
+      "text": "Every phone, microphone, and camera.",
+      "source_segments": [
+        628
+      ]
+    },
+    {
+      "start": 1936.0,
+      "end": 1938.0,
+      "text": "Every webcam.",
+      "source_segments": [
+        629
+      ]
+    },
+    {
+      "start": 1938.0,
+      "end": 1940.0,
+      "text": "Every surveillance camera.",
+      "source_segments": [
+        630
+      ]
+    },
+    {
+      "start": 1940.0,
+      "end": 1942.0,
+      "text": "You will be watched.",
+      "source_segments": [
+        631
+      ]
+    },
+    {
+      "start": 1942.0,
+      "end": 1945.0,
+      "text": "Could a less Orwellian version of this work?",
+      "source_segments": [
+        632
+      ]
+    },
+    {
+      "start": 1945.0,
+      "end": 1949.0,
+      "text": "Maybe we don't monitor everything, but just monitor advanced A.I.?",
+      "source_segments": [
+        633,
+        634
+      ]
+    },
+    {
+      "start": 1949.0,
+      "end": 1951.0,
+      "text": "Some people think so.",
+      "source_segments": [
+        635
+      ]
+    },
+    {
+      "start": 1951.0,
+      "end": 1964.0,
+      "text": "In their new book, If Anyone Builds It, Everyone Dies, Why Superhuman A.I. Would Kill Us All, Researchers at the Indian Intelligence Research Institute are proposing that we monitor advanced A.I. like we monitor nuclear weapons.",
+      "source_segments": [
+        636,
+        637,
+        638,
+        639,
+        640,
+        641,
+        642
+      ]
+    },
+    {
+      "start": 1964.0,
+      "end": 1977.0,
+      "text": "Reminder, we can do international coordination like keep an eye on a hundred million dollar and up compute clusters without creating a dystopian Orwellian global surveillance totalitarian regime.",
+      "source_segments": [
+        643,
+        644,
+        645,
+        646,
+        647
+      ]
+    },
+    {
+      "start": 1977.0,
+      "end": 1985.0,
+      "text": "Actually, fun fact, you're already living in a global surveillance regime for loads of things like nukes and bioweapons.",
+      "source_segments": [
+        648,
+        649,
+        650
+      ]
+    },
+    {
+      "start": 1985.0,
+      "end": 1990.0,
+      "text": "But when people say global surveillance regime, they imply every aspect of life is surveilled.",
+      "source_segments": [
+        651,
+        652
+      ]
+    },
+    {
+      "start": 1990.0,
+      "end": 1993.0,
+      "text": "Not keep an eye on enriched uranium.",
+      "source_segments": [
+        653
+      ]
+    },
+    {
+      "start": 1993.0,
+      "end": 1996.0,
+      "text": "A thing most people agree is good.",
+      "source_segments": [
+        654
+      ]
+    },
+    {
+      "start": 1996.0,
+      "end": 1999.0,
+      "text": "We should worry about Orwellian dystopias.",
+      "source_segments": [
+        655
+      ]
+    },
+    {
+      "start": 1999.0,
+      "end": 2003.0,
+      "text": "But countries coordinate all the time on all kinds of things.",
+      "source_segments": [
+        656,
+        657
+      ]
+    },
+    {
+      "start": 2003.0,
+      "end": 2009.0,
+      "text": "And you're probably glad they monitor stuff lunatics need to create super Ebola.",
+      "source_segments": [
+        658,
+        659,
+        660
+      ]
+    },
+    {
+      "start": 2009.0,
+      "end": 2011.0,
+      "text": "Safety is an achievement.",
+      "source_segments": [
+        661
+      ]
+    },
+    {
+      "start": 2011.0,
+      "end": 2014.0,
+      "text": "Humanity didn't get here by driving a car without brakes.",
+      "source_segments": [
+        662,
+        663
+      ]
+    },
+    {
+      "start": 2014.0,
+      "end": 2016.0,
+      "text": "We need gas and brakes.",
+      "source_segments": [
+        664
+      ]
+    },
+    {
+      "start": 2016.0,
+      "end": 2018.0,
+      "text": "We want to reach the stars, too.",
+      "source_segments": [
+        665
+      ]
+    },
+    {
+      "start": 2018.0,
+      "end": 2023.0,
+      "text": "But we'll never get there if we go too fast and crash all the way.",
+      "source_segments": [
+        666,
+        667
+      ]
+    },
+    {
+      "start": 2023.0,
+      "end": 2027.0,
+      "text": "I don't want powerful A.I. to be forbidden, but it should be heavily regulated.",
+      "source_segments": [
+        668,
+        669
+      ]
+    },
+    {
+      "start": 2027.0,
+      "end": 2031.0,
+      "text": "Not something you can build in your mid-western garage or in North Korea.",
+      "source_segments": [
+        670,
+        671
+      ]
+    },
+    {
+      "start": 2031.0,
+      "end": 2037.0,
+      "text": "International treaties with strict enforcement and inspections, as we do with nukes.",
+      "source_segments": [
+        672,
+        673
+      ]
+    },
+    {
+      "start": 2037.0,
+      "end": 2042.0,
+      "text": "So if you build a rogue data center, people will know.",
+      "source_segments": [
+        674,
+        675
+      ]
+    },
+    {
+      "start": 2042.0,
+      "end": 2044.0,
+      "text": "Consequences for violations.",
+      "source_segments": [
+        676
+      ]
+    },
+    {
+      "start": 2044.0,
+      "end": 2047.0,
+      "text": "We already did this with nuclear weapons.",
+      "source_segments": [
+        677
+      ]
+    },
+    {
+      "start": 2047.0,
+      "end": 2049.0,
+      "text": "We haven't eliminated nukes.",
+      "source_segments": [
+        678
+      ]
+    },
+    {
+      "start": 2049.0,
+      "end": 2054.0,
+      "text": "But we have prevented their proliferation to just nine countries.",
+      "source_segments": [
+        679,
+        680
+      ]
+    },
+    {
+      "start": 2054.0,
+      "end": 2057.0,
+      "text": "Back then, people thought this would be impossible.",
+      "source_segments": [
+        681
+      ]
+    },
+    {
+      "start": 2057.0,
+      "end": 2060.0,
+      "text": "Surely every country would have nukes.",
+      "source_segments": [
+        682
+      ]
+    },
+    {
+      "start": 2060.0,
+      "end": 2062.0,
+      "text": "Perhaps even thousands of corporations.",
+      "source_segments": [
+        683
+      ]
+    },
+    {
+      "start": 2062.0,
+      "end": 2064.0,
+      "text": "Maybe even millions of people.",
+      "source_segments": [
+        684
+      ]
+    },
+    {
+      "start": 2064.0,
+      "end": 2067.0,
+      "text": "But no, just nine countries.",
+      "source_segments": [
+        685
+      ]
+    },
+    {
+      "start": 2067.0,
+      "end": 2070.0,
+      "text": "And nobody has died from a nuke in 80 years.",
+      "source_segments": [
+        686
+      ]
+    },
+    {
+      "start": 2070.0,
+      "end": 2073.0,
+      "text": "Could we do the same with A.I.?",
+      "source_segments": [
+        687
+      ]
+    },
+    {
+      "start": 2073.0,
+      "end": 2075.0,
+      "text": "Maybe?",
+      "source_segments": [
+        688
+      ]
+    },
+    {
+      "start": 2073.0,
+      "end": 2075.0,
+      "text": "Maybe not.",
+      "source_segments": [
+        688
+      ]
+    },
+    {
+      "start": 2075.0,
+      "end": 2078.0,
+      "text": "Over time, A.I. will get cheaper and cheaper to build.",
+      "source_segments": [
+        689
+      ]
+    },
+    {
+      "start": 2078.0,
+      "end": 2082.0,
+      "text": "GPUs are harder to control than enriched uranium.",
+      "source_segments": [
+        690
+      ]
+    },
+    {
+      "start": 2082.0,
+      "end": 2084.0,
+      "text": "But it would slow down A.I.",
+      "source_segments": [
+        691
+      ]
+    },
+    {
+      "start": 2084.0,
+      "end": 2087.0,
+      "text": "It would buy us time to figure out what to do.",
+      "source_segments": [
+        692
+      ]
+    },
+    {
+      "start": 2087.0,
+      "end": 2089.0,
+      "text": "Okay, that's all 12.",
+      "source_segments": [
+        693
+      ]
+    },
+    {
+      "start": 2089.0,
+      "end": 2092.0,
+      "text": "Let me know in the comments which of these you think is most likely.",
+      "source_segments": [
+        694
+      ]
+    },
+    {
+      "start": 2092.0,
+      "end": 2095.0,
+      "text": "Which one we should steer toward.",
+      "source_segments": [
+        695
+      ]
+    },
+    {
+      "start": 2095.0,
+      "end": 2100.0,
+      "text": "Alarm bells over the artificial intelligence are deafening.",
+      "source_segments": [
+        696,
+        697
+      ]
+    },
+    {
+      "start": 2100.0,
+      "end": 2104.0,
+      "text": "They are loathest from the developers who designed it.",
+      "source_segments": [
+        698
+      ]
+    },
+    {
+      "start": 2104.0,
+      "end": 2116.0,
+      "text": "The scientists and experts have called on the world to act declaring A.I. an existential threat to humanity on a par with the risk of nuclear war.",
+      "source_segments": [
+        699,
+        700,
+        701
+      ]
+    },
+    {
+      "start": 2116.0,
+      "end": 2119.0,
+      "text": "By the way, we don't get to not choose.",
+      "source_segments": [
+        702
+      ]
+    },
+    {
+      "start": 2119.0,
+      "end": 2123.0,
+      "text": "If we don't want that future, we have to pick a better one.",
+      "source_segments": [
+        703
+      ]
+    },
+    {
+      "start": 2123.0,
+      "end": 2130.0,
+      "text": "Otherwise, we could wake up one day in a world where superintelligent A.I. has taken over.",
+      "source_segments": [
+        704,
+        705
+      ]
+    },
+    {
+      "start": 2133.0,
+      "end": 2139.0,
+      "text": "A scenario we go through step by step in this video about how an A.I. escapes the lab.",
+      "source_segments": [
+        706,
+        707
+      ]
+    },
+    {
+      "start": 2139.0,
+      "end": 2143.0,
+      "text": "Hey, I'm Drew and I really loved making this one for you guys.",
+      "source_segments": [
+        708
+      ]
+    },
+    {
+      "start": 2143.0,
+      "end": 2145.0,
+      "text": "Thank you.",
+      "source_segments": [
+        709
+      ]
+    }
+  ]
+}
