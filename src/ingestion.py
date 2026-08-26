@@ -11,6 +11,8 @@ from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
+import pysbd
+
 from src.config import (
     WHISPER_BEAM_SIZE,
     WHISPER_COMPUTE_TYPE,
@@ -203,8 +205,78 @@ def prepare_transcript(
     return _normalize_segments(raw_segments)
 
 
-def ingest_video(video_path: str | Path) -> list[dict[str, str | float]]:
-    """Validate, cache or transcribe, and return clean timestamped segments."""
+def _reconstruct_sentences(
+    segments: list[dict[str, str | float]],
+) -> list[dict[str, str | float | list[int]]]:
+    """Reconstruct exact pySBD sentence slices with source timestamps."""
+    transcript_parts: list[str] = []
+    source_spans: list[tuple[int, int]] = []
+    cursor = 0
+    for index, segment in enumerate(segments):
+        if index:
+            transcript_parts.append(" ")
+            cursor += 1
+        text = str(segment["text"])
+        char_start = cursor
+        transcript_parts.append(text)
+        cursor += len(text)
+        source_spans.append((char_start, cursor))
+
+    transcript = "".join(transcript_parts)
+    detected = pysbd.Segmenter(
+        language="en",
+        clean=False,
+        char_span=True,
+    ).segment(transcript)
+
+    sentences: list[dict[str, str | float | list[int]]] = []
+    source_cursor = 0
+    for span in detected:
+        if span.sent != transcript[span.start : span.end]:
+            raise RuntimeError("pySBD rewrote canonical transcript text")
+        start = span.start
+        end = span.end
+        while start < end and transcript[start].isspace():
+            start += 1
+        while end > start and transcript[end - 1].isspace():
+            end -= 1
+        if start >= end:
+            continue
+
+        while (
+            source_cursor < len(source_spans)
+            and source_spans[source_cursor][1] <= start
+        ):
+            source_cursor += 1
+        if source_cursor == len(source_spans):
+            raise RuntimeError("pySBD sentence has no source segment")
+        contributor_end = source_cursor
+        while (
+            contributor_end < len(source_spans)
+            and source_spans[contributor_end][0] < end
+        ):
+            contributor_end += 1
+        source_indices = list(range(source_cursor, contributor_end))
+        if not source_indices:
+            raise RuntimeError("pySBD sentence has no source segment")
+
+        sentences.append(
+            {
+                "start": segments[source_indices[0]]["start"],
+                "end": segments[source_indices[-1]]["end"],
+                "text": transcript[start:end],
+                "source_segments": source_indices,
+            }
+        )
+    if not sentences:
+        raise RuntimeError("pySBD produced no sentences")
+    return sentences
+
+
+def ingest_video(
+    video_path: str | Path,
+) -> list[dict[str, str | float | list[int]]]:
+    """Validate, cache or transcribe, and return timestamped sentences."""
     if not isinstance(video_path, (str, Path)) or not str(video_path).strip():
         raise ValueError("A local video path is required")
     path = Path(video_path).expanduser().resolve()
@@ -219,4 +291,5 @@ def ingest_video(video_path: str | Path) -> list[dict[str, str | float]]:
     if transcript is None:
         transcript = _transcribe_video(path)
         _save_cache(cache_path, source, profile, transcript)
-    return prepare_transcript(transcript)
+    segments = prepare_transcript(transcript)
+    return _reconstruct_sentences(segments)

@@ -2,3 +2,4 @@
 # PyAV, CTranslate2, and other decoding/inference requirements are installed
 # transitively by faster-whisper.
 faster-whisper>=1.0
+pysbd==0.3.4
