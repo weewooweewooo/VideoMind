@@ -3,3 +3,6 @@
 # transitively by faster-whisper.
 faster-whisper>=1.0
 pysbd==0.3.4
+bm25s==0.3.10
+PyStemmer==3.1.0
+fastembed==0.8.0
